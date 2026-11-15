@@ -446,7 +446,16 @@ namespace Vitals::Scrub
 			while (e < a_in.size() && isTok(a_in[e]))
 				++e;
 			const auto tok = a_in.substr(i, e - i);
-			if (LooksRandom(tok)) {
+			// plugin, archive and library names (ccFSVFO4001-ModularMilitaryBackpack.esl) look random but are the data we want
+			auto fileName = [&] {
+				if (e + 4 > a_in.size() || a_in[e] != '.')
+					return false;
+				for (const char* ext : { "esl", "esp", "esm", "ba2", "dll" })
+					if (EqI(a_in.substr(e + 1, 3), ext) && (e + 4 == a_in.size() || !IsAlnum(a_in[e + 4])))
+						return true;
+				return false;
+			};
+			if (LooksRandom(tok) && !fileName()) {
 				out += "<secret>";
 				++a_n["secret"];
 			} else {

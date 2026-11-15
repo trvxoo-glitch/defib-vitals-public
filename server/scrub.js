@@ -308,7 +308,7 @@ export function longTokens(input, n) {
     let e = i;
     while (e < input.length && isTok(input[e])) e++;
     const tok = input.slice(i, e);
-    if (looksRandom(tok)) {
+    if (looksRandom(tok) && !/^\.(esl|esp|esm|ba2|dll)(?![A-Za-z0-9])/i.test(input.slice(e, e + 5))) {
       out += '<secret>';
       bump(n, 'secret');
     } else out += tok;

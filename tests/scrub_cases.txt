@@ -81,6 +81,9 @@ text: Authorization: Bearer abcDEF123ghiJKL456
 want: Authorization: Bearer <secret>
 text: key Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRkdISUpLTE1O-- end
 want: key <secret> end
+
+text: ccFSVFO4001-ModularMilitaryBackpack.esl and ccBGSFO4034-PowerArmorSkinYellow.esl
+want: ccFSVFO4001-ModularMilitaryBackpack.esl and ccBGSFO4034-PowerArmorSkinYellow.esl
 # SHA-256 hashes and long mod names stay
 text: "sha256":"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 want: "sha256":"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
