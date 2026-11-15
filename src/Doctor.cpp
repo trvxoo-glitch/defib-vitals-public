@@ -1049,12 +1049,13 @@ namespace Vitals
 			using Indirect_t = int(__stdcall*)(const MsgBoxParams*);
 			const auto indirect = reinterpret_cast<Indirect_t>(user32 ? REX::W32::GetProcAddress(user32, "MessageBoxIndirectW") : nullptr);
 			constexpr std::uint32_t style = kAbortRetryIgnore | kWarning | kDefButton3 | kSetForeground | kTopmost;
-			int r = 0;
+			const auto title = L"Vitals - " + Widen(F4SE::GetPluginVersion().string());
+			int        r = 0;
 			if (indirect) {
-				const MsgBoxParams p{ sizeof(MsgBoxParams), nullptr, nullptr, a_text.c_str(), L"Vitals - mod setup problems", style | kHelp, nullptr, 0, &CopyReport, 0 };
+				const MsgBoxParams p{ sizeof(MsgBoxParams), nullptr, nullptr, a_text.c_str(), title.c_str(), style | kHelp, nullptr, 0, &CopyReport, 0 };
 				r = indirect(&p);
 			} else {
-				r = REX::W32::MessageBoxW(nullptr, a_text.c_str(), L"Vitals - mod setup problems", style);
+				r = REX::W32::MessageBoxW(nullptr, a_text.c_str(), title.c_str(), style);
 			}
 			g_box = nullptr;
 			if (g_hook) {  // the box never activated (should not happen): do not leave the hook installed
@@ -1151,7 +1152,7 @@ namespace Vitals
 				text += "\n";
 			}
 			text += "Full report with what to do: " + ReportPathText() +
-			        "\n\nContinue = start the game (shows again next launch)\nDon't show = stop listing these plugins\nStop game = close now and fix this first\nCopy report = copy the full report for a bug report";
+			        "\n\nContinue = start the game (shows again next launch)\nDon't show = Vitals stops listing these plugins\nStop game = abort and fix manually\nCopy report = copy the full report";
 			Emit("doctor_popup", Json().UNum("crash_risks", crashShown.size()).UNum("not_running", dllShown.size()));
 			const auto choice = ShowPopup(Widen(text));
 			if (choice == 4) {
