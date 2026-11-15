@@ -946,7 +946,7 @@ namespace Vitals
 				text += "\n";
 			}
 			text += "Full report with what to do: " + ReportPathText() +
-			        "\n\nContinue: start the game (this box shows again next launch).   Don't show: stop listing these plugins (problems that may crash the game still show).   Stop game: close it now so you can fix this first.   Copy report: copy the full report to paste into a comment or bug report.";
+			        "\n\nContinue = start the game (shows again next launch)\nDon't show = stop listing these plugins\nStop game = close now and fix this first\nCopy report = copy the full report for a bug report";
 			Emit("doctor_popup", Json().UNum("crash_risks", crashShown.size()).UNum("not_running", dllShown.size()));
 			const auto choice = ShowPopup(Widen(text));
 			if (choice == 4) {
