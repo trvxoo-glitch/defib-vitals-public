@@ -355,12 +355,13 @@ namespace Vitals
 	{
 		if (!SharePackEnabled())
 			return {};
-		return "\nSHARE PACK (you chose to help improve Vitals)\n"
-		       "  Vitals-Share.zip in this folder holds this report, F4SE's logs, your load order and recent crash logs, with your\n"
-		       "  user name, PC name, emails, IP addresses, keys and private folder paths removed (scrub-report.txt inside says how many).\n"
-		       "  Nothing is sent automatically. Open the zip to check it, then share it if you want to: upload it at\n"
-		       "  https://vitals-share.vitalsguy.workers.dev (you see every file first and get a code that deletes it), or attach it to a\n"
-		       "  GitHub issue at https://github.com/trvxoo-glitch/defib-vitals-public/issues.\n"
-		       "  Turn it off: set bSharePack=0 in Vitals.ini, or delete Data\\F4SE\\Plugins\\Vitals\\share-optin.txt.\n";
+		return "\nHOW TO HELP (you chose to help improve Vitals)\n"
+		       "  Vitals made a log pack with your personal details removed. Vitals never sends it for you. To share it:\n"
+		       "    1. Open https://vitals-share.vitalsguy.workers.dev in your browser.\n"
+		       "    2. Drag Vitals-Share.zip onto the page (it is in this same folder).\n"
+		       "    3. Press Send. You get a code. Keep it: it deletes your pack later.\n"
+		       "  You see every file on that page first and can untick any. Not on the web? Attach the zip to an issue at\n"
+		       "  https://github.com/trvxoo-glitch/defib-vitals-public/issues instead.\n"
+		       "  Stop making the pack: set bSharePack=0 in Vitals.ini, or delete Data\\F4SE\\Plugins\\Vitals\\share-optin.txt.\n";
 	}
 }

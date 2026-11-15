@@ -41,13 +41,9 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 							<typeDescriptor><type name="Recommended" /></typeDescriptor>
 						</plugin>
 						<plugin name="Yes, help improve Vitals">
-							<description>Vitals saves a share pack after each session: its own reports, F4SE's logs, your load order, a few game settings, a short PC summary (Windows, CPU, RAM, GPU) and your newest crash logs, in one zip (Vitals-Share.zip) in your Vitals folder.
+							<description>Vitals saves a log pack (Vitals-Share.zip) on your PC after each session, with your user name, PC name, emails, IP addresses, keys and private paths scrubbed out. Vitals never sends it.
 
-Before anything goes into the pack, Vitals scrubs personal details out of every file: your Windows user name and PC name, email and IP addresses, account ids, API keys and private folder paths are replaced with placeholders, and text read from game memory in crash logs is removed. Mod names stay. A scrub-report.txt inside lists how many of each were removed.
-
-Nothing is ever sent automatically: Vitals has no network code. You can open the zip and read it first, then share it yourself if you want to: upload it on the Vitals share page (it shows every file first and gives you a code that deletes it), or attach it to a GitHub issue.
-
-Turn it off at any time by deleting Data\F4SE\Plugins\Vitals\share-optin.txt or setting bSharePack=0 in Vitals.ini; Vitals then deletes its pack at the next launch. Privacy details: docs\PRIVACY_AND_SAFETY.md (also on GitHub).</description>
+To help: open https://vitals-share.vitalsguy.workers.dev, drag Vitals-Share.zip onto the page (it is in Documents\My Games\Fallout4\F4SE\Vitals), and press Send. You see every file first and can untick any. Details: docs\PRIVACY_AND_SAFETY.md on GitHub.</description>
 							<files>
 								<folder source="20 Share - Yes" destination="" />
 							</files>
