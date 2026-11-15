@@ -387,7 +387,7 @@ namespace Vitals
 
 		std::string ReadText(const std::filesystem::path& a_file)
 		{
-			const auto d = ReadFile(a_file, 4u << 20);
+			const auto d = ReadFile(a_file, 128u << 20);  // vortex.deployment.json is several MB on a big modlist
 			return { d.begin(), d.end() };
 		}
 
@@ -606,7 +606,7 @@ namespace Vitals
 				if (const auto ver = Formats::FileVersion(data); !ver.empty())
 					where += " File version " + ver + ".";
 				std::string installedBy = VortexSource(file), copyAdvice;
-				const bool  byVortex = !installedBy.empty();
+				const bool  byVortex = !InstalledMods().vortex.staging.empty();
 				const auto  others = OtherCopies(file, data, installedBy, copyAdvice);
 				if (!installedBy.empty())
 					where += std::format(" Installed by the {} mod \"{}\".", byVortex ? "Vortex" : "MO2", installedBy);
