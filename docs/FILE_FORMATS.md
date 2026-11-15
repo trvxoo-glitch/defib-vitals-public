@@ -159,7 +159,7 @@ A zip with **stored** (uncompressed) entries and UTF-8 names (`include/Vitals/Zi
 `scrub-report.txt`. A missing source file is left out. Every entry except
 `manifest.json` passed through `include/Vitals/Scrub.h` (crash logs through `Scrub::CrashLog`). Each source keeps its
 newest 2 MB (a first line `[Vitals: N older bytes left out ...]` says so); files that would take the pack past 8 MB are
-left out and named in the manifest. The upload server accepts exactly these names (`server/worker.js`, `NAMES`).
+left out and named in the manifest. These are the only names in a pack.
 
 `manifest.json`: `format` (`vitals-share 1`), `vitals_version`, `game_version`, `runtime`, `f4se_version`,
 `install_id` (32 hex digits, random, from `share-id.txt`), `date` (`YYYY-MM-DD`), `written_at` (`start` or

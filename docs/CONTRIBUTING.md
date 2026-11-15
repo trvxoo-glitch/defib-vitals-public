@@ -24,5 +24,5 @@ Include `Vitals-Report.txt` (safe to share) and, if asked, `Vitals.jsonl`; the g
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) first, especially the design rules (read only, never stop the game, library-provided addresses only, exact build list).
 - Build: [BUILDING.md](BUILDING.md). Tests: `python -m unittest discover -s tests` must pass; CI also builds the DLL and checks the FOMOD package.
 - Keep player-facing text in plain language with a "what to do".
-- Update [FILE_FORMATS.md](FILE_FORMATS.md), the user guide and `CHANGELOG.md` with the change. The DLL's F4SE rules (`include/Vitals/Rules.h`) and `tools/f4se_dll_scan.py` change together, with a line in `tests/loader_cases.txt`. The scrubber (`include/Vitals/Scrub.h`) and `server/scrub.js` change together, with a line in `tests/scrub_cases.txt`.
+- Update [FILE_FORMATS.md](FILE_FORMATS.md), the user guide and `CHANGELOG.md` with the change. The DLL's F4SE rules (`include/Vitals/Rules.h`) and `tools/f4se_dll_scan.py` change together, with a line in `tests/loader_cases.txt`. A change to the scrubber (`include/Vitals/Scrub.h`) comes with a line in `tests/scrub_cases.txt`.
 - Never add files that belong to someone else (other mods' DLLs, `f4rd-runtime.bin`, game executables, baselines, Address Library files).

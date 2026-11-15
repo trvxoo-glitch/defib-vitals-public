@@ -22,7 +22,7 @@ owners and game stubs (5), plain-language report (6).
 6. Batch-bisect helper (disable half the mods, retest) for crashes that name no mod.
 7. Opt-in Papyrus call trace for remaking dead mods.
 8. Test on 1.10.984 (NG) by the owner (a player confirmed it works), and VR if available.
-9a. Share packs (0.4.0 writes them): deploy the upload server (`server/README.md`), then turn
+9a. Share packs (0.4.0 writes them): collect them in the Discord server (`docs/DISCORD_INBOX.md`), then turn
    `tools/share_inbox.py summary` candidates into confirmed rules.
 9. Nexus release. Owner's decision, after the in-game test and a GitHub release.
 10. Translations of the report messages (all player-facing text is in `Doctor.cpp` and the rules).

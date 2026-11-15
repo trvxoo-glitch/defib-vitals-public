@@ -69,28 +69,28 @@ screenshots, baselines, DLLs or other mod files, whole INI files, the raw Papyru
 Mod and plugin file names and SHA-256 hashes stay: they are the point of the pack. The scrubber is tested against
 `tests/scrub_cases.txt` (made-up personal data) in CI; a case is added for every miss someone reports.
 
-**Ten layers.** The list above is an allowlist; raw files are summarised where a summary is enough; files are scrubbed
-twice (Vitals, then the upload server with the same rules); paths are folded; the install id is random (not from your
-PC) and a new one is made if you delete `share-id.txt`; you can read the zip before sending it and untick files on the
-upload page; nothing leaves without you; the server keeps nothing about the sender; packs are deleted after 90 days or
-on request; and only counts across five or more installs are ever published.
+**Nine layers.** The list above is an allowlist; raw files are summarised where a summary is enough; files are
+scrubbed (user name, PC name, emails, IPs, keys and tokens) before the zip is written; paths are folded; the install id
+is random (not from your PC) and a new one is made if you delete `share-id.txt`; you can open the zip and read every
+file before sending it; nothing leaves without you; each pack goes into a private channel only you and the maintainer
+can see; packs are deleted after 90 days or on request; and only counts across five or more installs are ever published.
 
-**Sending it.** Your choice, any time: attach it to a [GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues),
-or drag it onto the upload page, https://vitals-share.vitalsguy.workers.dev, where you see every file, can untick any, and get a code
-to quote in a bug report and to delete the pack. The server is in `server/` (see `server/README.md` for exactly what it stores: the pack, the Vitals and game
-version, the random install id and the date; no IP address, account or cookie).
+**Sending it.** Your choice, any time: join the Vitals Discord server (https://discord.gg/XghtBZUFNW), press **Send my pack**, and drag
+`Vitals-Share.zip` into the private channel that opens. Or attach it to a
+[GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues) if you do not use Discord (an issue is public, so
+read the zip first). Instructions for the person running the server are in [DISCORD_INBOX.md](DISCORD_INBOX.md).
 
-**Vitals itself never connects to it.** Sending is your browser's upload, not the plugin's: Vitals has no network code.
+**Vitals itself never connects to it.** Sending is you dragging a file into Discord, not the plugin: Vitals has no network code.
 
-**Who can read packs.** Only the project maintainer, with a private key. Every download is logged. Raw packs are never
+**Who can read packs.** Only the project maintainer, and the read-only helper tool the maintainer runs to download them
+(`tools/share_inbox.py`), which reads the private channels only. Other members cannot see them. Raw packs are never
 published, committed, posted or given to other people or services. What is published is counts across five or more
 installs (for example "this DLL fails to load on 40 setups"), and only after a person confirms it in game. A pack is
-deleted after 90 days, or at once with its code.
+deleted after 90 days, or on request: ask in your channel, or close it.
 
-**What the server can see.** Your upload is an ordinary HTTPS request, so Cloudflare, who run the server, handle the
-connection like any website visit. Request logging is off and no IP address, account or cookie is stored. The only trace
-of your address is a one-hour rate-limit counter made from a daily-changing hash of it, which cannot be matched across
-days.
+**What Discord sees.** Your upload is an ordinary Discord attachment, so Discord, who run the service, handle it under
+their own terms and privacy policy, and your Discord name and account are visible to the maintainer in the channel. That
+is the trade-off compared with a plain web form: if you want no account link at all, do not send a pack.
 
 **Turning it off.** Delete `Data\F4SE\Plugins\Vitals\share-optin.txt`, set `bSharePack=0`, or reinstall and pick
 **No thanks**. At the next launch Vitals deletes `Vitals-Share.zip` and `share-id.txt`.

@@ -11,7 +11,7 @@ Not yet tested in game.
   (with Vortex) which mod installed each F4SE DLL. **Every file is scrubbed first:** your user name, PC name, emails, IP
   and MAC addresses, Steam ids, Windows account ids, keys and tokens, Mod Organizer profile names and private folder
   paths become placeholders, and text read from game memory in crash logs is removed. `scrub-report.txt` inside says
-  how many of each. **Vitals still has no network code:** you decide whether to send the zip, by uploading it on the share page (https://vitals-share.vitalsguy.workers.dev) or attaching it to a GitHub issue. Turn it off by deleting
+  how many of each. **Vitals still has no network code:** you decide whether to send the zip, by dragging it into a private channel in the Vitals Discord server (https://discord.gg/XghtBZUFNW) or attaching it to a GitHub issue. Turn it off by deleting
   `Vitals\share-optin.txt` or setting `bSharePack=0`; the next launch deletes the pack. Full list and reasons:
   `docs/PRIVACY_AND_SAFETY.md`.
 - **Fairer wording for plugins F4SE skips, and a wrong build date fixed.** A Nexus user reported a current mod flagged
@@ -41,10 +41,9 @@ Not yet tested in game.
 - **Knowledge rules can name game versions** (`oldfile@NG,AE`). The old main-menu and font-file rules now apply only
   to Next-Gen and Anniversary, where those files break; Old-Gen players no longer see them. The offline preflight
   reads the same tags.
-- **Upload server and inbox for share packs** (in the repository, not in the mod): `server/` is a small Cloudflare
-  Worker with a private bucket that checks and scrubs every pack again, keeps nothing about the sender and deletes
-  packs after 90 days; `tools/share_inbox.py` counts not-running DLLs, crash locations and unbound Papyrus functions
-  across installs. Not deployed yet.
+- **Inbox for share packs** (in the repository, not in the mod): players drag the zip into a private ticket channel in
+  the Vitals Discord server; `tools/share_inbox.py pull-discord` downloads them with a read-only bot, and `summary`
+  counts not-running DLLs, crash locations and unbound Papyrus functions across installs (see `docs/DISCORD_INBOX.md`).
 - Next-Gen 1.10.984: a player confirmed Vitals works (36 of 43 plugins running, 772-plugin load order).
 - `Vitals.ini`: the `iPopupMode` comment describes 0.3.2's behaviour (the box shows every launch while it has
   something to list).

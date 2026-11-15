@@ -1,5 +1,5 @@
-# Share-pack scrubber cases: include/Vitals/Scrub.h (tests/cpp/rules_test.cpp) and server/scrub.js
-# (server/test/scrub.test.mjs) must both turn every "text:" or "crash:" line into the "want:" line after it.
+# Share-pack scrubber cases: include/Vitals/Scrub.h (tests/cpp/rules_test.cpp)
+# must turn every "text:" or "crash:" line into the "want:" line after it.
 # All personal data here is made up. Add a case for every miss someone reports.
 #
 #   ctx user=NAME | ctx pc=NAME | ctx domain=NAME | ctx root=FOLDER|TOKEN   context for the cases below

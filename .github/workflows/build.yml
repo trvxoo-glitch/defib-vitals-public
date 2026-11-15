@@ -97,9 +97,3 @@ jobs:
           ./rules_test_asan tests/loader_cases.txt
       - name: Unit tests (log analyzer, preflight, FOMOD package, address generator, loader cases, share inbox)
         run: python -m unittest discover -s tests -v
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Share-pack server tests (scrub cases shared with C++, C++/JS cross check, upload routes)
-        working-directory: server
-        run: node --test test/*.test.mjs

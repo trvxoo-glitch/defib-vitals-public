@@ -6,5 +6,3 @@ lib/commonlibf4/
 package/
 symbols/
 __pycache__/
-server/node_modules/
-server/.wrangler/

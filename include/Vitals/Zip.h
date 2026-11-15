@@ -1,6 +1,6 @@
 #pragma once
 // A minimal zip writer for the share pack: "stored" entries only (no compression), UTF-8 names, no zip64.
-// Stored entries keep the format trivial to read back (server/zip.js checks every entry before it accepts a pack)
+// Stored entries keep the format trivial to read back
 // and the share pack is small text. Plain C++20; tested in tests/cpp/rules_test.cpp.
 
 #include <array>

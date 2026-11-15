@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """Vitals share-pack inbox: download packs players sent, and turn many packs into one summary of candidate rules.
 
-  python tools/share_inbox.py pull --out inbox          download new packs from the upload server
-        (needs VITALS_SHARE_URL and VITALS_READ_KEY in the environment; see server/README.md)
   python tools/share_inbox.py pull-discord --out inbox  download packs players attached in the Discord server
         (needs VITALS_DISCORD_TOKEN, VITALS_DISCORD_GUILD and optionally VITALS_DISCORD_CATEGORY; see docs/DISCORD_INBOX.md)
   python tools/share_inbox.py summary inbox [--out summary.md] [--min-installs 5]
 
-`summary` reads every *.zip in the folder (packs from the server, or ones players attached to a GitHub issue) and
+`summary` reads every *.zip in the folder (packs from Discord, or ones players attached to a GitHub issue) and
 counts, per distinct install id (a random id, one per Vitals install; it says nothing about the player):
   * F4SE DLLs that are not running, with Vitals' loader reason, game build and the mod folder that installed them
   * crash locations (module+offset of the unhandled exception) and the modules on the probable call stack
@@ -32,38 +30,6 @@ from collections import Counter, defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KNOWLEDGE = os.path.join(ROOT, "dist", "Data", "F4SE", "Plugins", "Vitals", "knowledge")
-CODE = re.compile(r"^VTL-[A-Z2-9]{4}-[A-Z2-9]{4}$")
-
-
-# ---------------------------------------------------------------- pull
-def _get(url, key):
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}", "User-Agent": "vitals-share-inbox"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
-
-
-def pull(out, base=None, key=None):
-    base = (base or os.environ.get("VITALS_SHARE_URL", "")).rstrip("/")
-    key = key or os.environ.get("VITALS_READ_KEY", "")
-    if not base or not key:
-        raise SystemExit("Set VITALS_SHARE_URL and VITALS_READ_KEY (see server/README.md).")
-    os.makedirs(out, exist_ok=True)
-    cursor, new = None, 0
-    while True:
-        listing = json.loads(_get(f"{base}/v1/admin/packs" + (f"?cursor={cursor}" if cursor else ""), key))
-        for p in listing["packs"]:
-            code = p["code"]
-            dest = os.path.join(out, f"{code}.zip")
-            if not CODE.match(code) or os.path.exists(dest):
-                continue
-            with open(dest, "wb") as f:
-                f.write(_get(f"{base}/v1/admin/pack/{code}", key))
-            new += 1
-        cursor = listing.get("cursor")
-        if not cursor:
-            break
-    print(f"{new} new pack(s) in {out}")
-    return new
 
 
 # ---------------------------------------------------------------- pull from Discord
@@ -272,8 +238,6 @@ def summarize(folder, min_installs=5, knowledge=KNOWLEDGE):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("pull")
-    p.add_argument("--out", default="inbox")
     d = sub.add_parser("pull-discord")
     d.add_argument("--out", default="inbox")
     s = sub.add_parser("summary")
@@ -281,9 +245,6 @@ def main(argv=None):
     s.add_argument("--out")
     s.add_argument("--min-installs", type=int, default=5)
     a = ap.parse_args(argv)
-    if a.cmd == "pull":
-        pull(a.out)
-        return 0
     if a.cmd == "pull-discord":
         pull_discord(a.out)
         return 0

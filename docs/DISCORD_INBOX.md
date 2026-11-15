@@ -43,8 +43,8 @@ committed.
 Rules that stay as before: raw packs never go in git or to a third-party AI service, a rule needs at least 5 distinct
 installs, and a person tests it before it ships.
 
-## Retiring the old Cloudflare page
+## The old Cloudflare page
 
-Only after Discord works and any packs already on the old server have been pulled
-(`python tools/share_inbox.py pull --out inbox`): delete the Worker, the R2 bucket and the KV namespace in the
-Cloudflare dashboard, and remove the `server/` folder from the repository.
+Early builds used a Cloudflare upload page (Worker, R2 bucket, KV namespace). It is retired: nothing points at it any
+more and its code is gone from the repository. If you still have it deployed, delete the Worker, the R2 bucket and the
+KV namespace in the Cloudflare dashboard.

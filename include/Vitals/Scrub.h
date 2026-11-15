@@ -1,8 +1,7 @@
 #pragma once
 // Vitals share-pack scrubber: removes personal details from text before it goes into Vitals-Share.zip.
 // Plain C++20 and the standard library only, like Rules.h, so tests/cpp/rules_test.cpp checks exactly what ships.
-// server/scrub.js is a line-by-line port used for the server's second pass; tests/scrub_cases.txt feeds the same
-// cases to both, so they cannot drift apart.
+// tests/scrub_cases.txt holds the cases (all made-up personal data).
 //
 // Order matters (each step sees the previous step's output):
 //   1. known folders (game, Documents, AppData, mod manager staging)  -> <game> <docs> <appdata> <localappdata> <staging>

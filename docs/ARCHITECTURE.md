@@ -51,11 +51,10 @@ and a message box there appears before a load-order crash at the main menu.
 | `src/Environment.cpp` | Game build, F4SE version, every DLL with its F4SE data and whether it is in the process |
 | `src/Doctor.cpp` | Plugin doctor: PE parsing, plain-language reasons (`Explain`), f4se.log lines, knowledge rules (with per-runtime tags), load order and masters, report, message box (with Copy report) |
 | `src/Share.cpp` | Opt-in share pack: picks the files, builds the scrub context (known folders, user and PC name, Vortex staging), summaries, `Vitals-Share.zip`, the report's share section |
-| `include/Vitals/Scrub.h` | The share-pack scrubber, plain C++20. Tested by `tests/cpp/rules_test.cpp` with `tests/scrub_cases.txt`; `server/scrub.js` is a line-by-line port checked against it on the same cases and on random input |
+| `include/Vitals/Scrub.h` | The share-pack scrubber, plain C++20. Tested by `tests/cpp/rules_test.cpp` with `tests/scrub_cases.txt`; the share packs are scrubbed once, by this code, before the zip is written |
 | `include/Vitals/Share.h` | Share-pack summaries that need no game: Papyrus log counts, Vortex manifest to DLL sources, breadcrumbs as text, the INI allowlist, size caps |
-| `include/Vitals/Zip.h` | Stored-only zip writer (CRC-32), read back by `server/zip.js` |
-| `server/` | The upload page and private storage for share packs (Cloudflare Worker + R2), with its own README and tests |
-| `tools/share_inbox.py` | Downloads packs (maintainers) and counts not-running DLLs, crash locations and unbound natives across installs |
+| `include/Vitals/Zip.h` | Stored-only zip writer (CRC-32) |
+| `tools/share_inbox.py` | Downloads packs from the Discord server (maintainers) and counts not-running DLLs, crash locations and unbound natives across installs |
 | `include/Vitals/Rules.h` | The parts that need no game, plain C++20: F4SE loader rules (`Loader::Check`), plugin-name decoding, INI values, return-stub detection, popup decision and key files, the real load order, UTF-8-safe cuts, user-folder redaction. Tested by `tests/cpp/rules_test.cpp` |
 | `include/Vitals/Formats.h` | Readers for files on disk, plain C++20: PE exports and `F4SEPlugin_Version` data, the Address Library table, TES4 plugin headers. Every bound is checked by subtraction, so a crafted size or offset cannot wrap. Fuzzed and tested by `tests/cpp/rules_test.cpp` (CI also runs it under AddressSanitizer) |
 | `src/Addresses.cpp` | Address check: resolve IDs, read bytes, compare with list/baseline, jump decoding and hook owners (`ResolveOwner`), singleton classes, baseline capture |

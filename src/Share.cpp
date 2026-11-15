@@ -357,11 +357,10 @@ namespace Vitals
 			return {};
 		return "\nHOW TO HELP (you chose to help improve Vitals)\n"
 		       "  Vitals made a log pack with your personal details removed. Vitals never sends it for you. To share it:\n"
-		       "    1. Open https://vitals-share.vitalsguy.workers.dev in your browser.\n"
-		       "    2. Drag Vitals-Share.zip onto the page (it is in this same folder).\n"
-		       "    3. Press Send. You get a code. Keep it: it deletes your pack later.\n"
-		       "  You see every file on that page first and can untick any. Not on the web? Attach the zip to an issue at\n"
-		       "  https://github.com/trvxoo-glitch/defib-vitals-public/issues instead.\n"
+		       "    1. Join https://discord.gg/XghtBZUFNW and press the Send my pack button.\n"
+		       "    2. Drag Vitals-Share.zip (it is in this same folder) into the private channel that opens.\n"
+		       "  Only the Vitals maintainer can see that channel. Open the zip first if you want to see what is in it.\n"
+		       "  No Discord? Attach the zip to an issue at https://github.com/trvxoo-glitch/defib-vitals-public/issues instead.\n"
 		       "  Stop making the pack: set bSharePack=0 in Vitals.ini, or delete Data\\F4SE\\Plugins\\Vitals\\share-optin.txt.\n";
 	}
 }

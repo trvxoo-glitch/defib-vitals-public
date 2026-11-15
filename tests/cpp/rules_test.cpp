@@ -381,7 +381,7 @@ static void LoadOrderTests()
 	CHECK(ActualLoadOrder(0, {}).empty());
 }
 
-// tests/scrub_cases.txt: the share-pack scrubber (server/scrub.js reads the same file)
+// tests/scrub_cases.txt: the share-pack scrubber
 static int RunScrubCases(const std::string& a_path)
 {
 	std::ifstream in(a_path, std::ios::binary);
