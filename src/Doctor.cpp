@@ -20,7 +20,7 @@
 // "info" = good to know.
 //
 // Output: Vitals-Report.txt (plain language, for players), "doctor_issue" lines in Vitals.jsonl, and one Windows
-// message box when something new needs attention (iPopupMode: 0 never, 1 when there is something new, 2 always).
+// message box when something new needs attention (iPopupMode: 0 never, 1 or 2 on every launch while there is something to list; only "Don't show" removes plugins from it).
 // The loader rules and the popup decision live in include/Vitals/Rules.h, where tests/cpp/rules_test.cpp checks them.
 
 namespace Vitals
@@ -770,7 +770,7 @@ namespace Vitals
 
 		std::string PopupKey(const Issue& a_i) { return a_i.category + ":" + Lower(a_i.subject); }
 
-		// Keys in popup_seen.txt / popup_disabled.txt: Rules::ParseKeyFile / FormatKeyFile (a versioned file, one key per
+		// Keys in popup_disabled.txt: Rules::ParseKeyFile / FormatKeyFile (a versioned file, one key per
 		// line, read verbatim so DLL names with spaces survive). Older files are still read.
 		Rules::KeyFile ReadKeys(const std::filesystem::path& a_file, bool& a_exists)
 		{
@@ -799,9 +799,8 @@ namespace Vitals
 			if (!mode)
 				return;
 			const auto offFile = OutputDir() / L"popup_disabled.txt";
-			const auto seenFile = OutputDir() / L"popup_seen.txt";
 			// What may open the box: problems that may crash the game, and F4SE plugins that are not running.
-			std::vector<std::string>         crash, notRunning, current;
+			std::vector<std::string>         crash, notRunning;
 			std::map<std::string, const Issue*> byKey;
 			for (const auto& i : g_issues) {
 				const bool isCrash = i.severity == "problem";
@@ -812,23 +811,14 @@ namespace Vitals
 				if (!byKey.emplace(k, &i).second)
 					continue;
 				(isCrash ? crash : notRunning).push_back(k);
-				current.push_back(k);
 			}
-			bool       offExists = false, seenExists = false;
+			bool       offExists = false;
 			const auto offFileKeys = ReadKeys(offFile, offExists);
 			const auto muted = offFileKeys.keys;
-			const auto seen = ReadKeys(seenFile, seenExists).keys;
 			const bool mutedAll = offExists && offFileKeys.legacyNoKeys;  // the 0.3.0 file: it muted every plugin
-			const auto state = Rules::DecidePopup(mode, crash, notRunning, seen, muted, mutedAll);
-			auto       saveSeen = [&](bool a_shownAndKept) {
-				const auto next = Rules::NextSeen(seen, current, state, a_shownAndKept);
-				if (next != seen)
-					WriteKeys(seenFile, next, {});
-			};
-			if (!state.open) {
-				saveSeen(false);  // forget what went away, so it warns again if it comes back
+			const auto state = Rules::DecidePopup(mode, crash, notRunning, muted, mutedAll);
+			if (!state.open)
 				return;
-			}
 
 			std::vector<const Issue*> crashShown, dllShown;
 			for (const auto& k : state.show)
@@ -863,7 +853,7 @@ namespace Vitals
 				text += "\n";
 			}
 			text += "Full report with what to do: " + ReportPathText() +
-			        "\n\nContinue: start the game.   Don't show: stop showing these plugins (problems that may crash the game still show).   Stop game: close it now so you can fix this first.";
+			        "\n\nContinue: start the game (this box shows again next launch).   Don't show: stop listing these plugins (problems that may crash the game still show).   Stop game: close it now so you can fix this first.";
 			Emit("doctor_popup", Json().UNum("crash_risks", crashShown.size()).UNum("not_running", dllShown.size()));
 			const auto choice = ShowPopup(Widen(text));
 			if (choice == 4) {
@@ -875,15 +865,12 @@ namespace Vitals
 						keys.insert(k);
 				WriteKeys(offFile, keys, "# Vitals will not show these F4SE plugins in the start-up box again (problems that may crash the game still show).\n# Delete this file to show them again.\n");
 				Emit("doctor_popup_choice", Json().Str("choice", "dont_show_again"));
-				saveSeen(true);
 			} else if (choice == 3) {
 				Emit("doctor_popup_choice", Json().Str("choice", "stop_game"));
 				Summary("Stopped by the user from the Vitals problem box");
-				saveSeen(false);  // not marked as seen: the box shows again on the next launch
 				REX::W32::TerminateProcess(REX::W32::GetCurrentProcess(), 0);
 			} else {
 				Emit("doctor_popup_choice", Json().Str("choice", "continue"));
-				saveSeen(true);
 			}
 		}
 	}

@@ -12,7 +12,7 @@
 
 **What does "no F4SEPlugin_Version data" mean?** The DLL only has the old plugin entry point. F4SE 0.7.x (Next-Gen and Anniversary) ignores such plugins. If it was built before April 2024 it was made for Old-Gen 1.10.163 and needs an updated version; if built later it may have a newer file.
 
-**The start-up box is annoying.** Press **Don't show** in the box: it stops listing those plugins, and only a new problem that may crash the game opens it again. Or set `iPopupMode=0` in `Vitals.ini` to turn it off completely. The report is still written. By default each item is shown once.
+**The start-up box is annoying.** Press **Don't show** in the box: it stops listing those plugins, and only a problem that may crash the game opens it again. **Continue** only starts the game, so the box comes back next launch. Or set `iPopupMode=0` in `Vitals.ini` to turn it off completely. The report is still written. By default each item is shown once.
 
 **Which game versions work?** 1.10.163 (Old-Gen, tested), 1.10.980/984 (Next-Gen, built, untested), 1.11.137 to 1.11.240 (Anniversary, tested on 1.11.240). One file for all.
 

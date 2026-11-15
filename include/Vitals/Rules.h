@@ -245,13 +245,13 @@ namespace Vitals::Rules
 	}
 
 	// ---------------------------------------------------------------- popup
-	// Which problems open the start-up message box (iPopupMode=1). Items are "category:subject" keys.
-	//  * crash: problems that may crash the game. never muted by "Don't show".
+	// Which items open the start-up message box (iPopupMode 1 or 2). Items are "category:subject" keys.
+	//  * crash: problems that may crash the game. Never muted by "Don't show".
 	//  * notRunning: F4SE plugins that are not running. Muted by "Don't show".
-	//  * seen: keys shown before (popup_seen.txt); muted: keys the player chose not to see again (popup_disabled.txt);
+	//  * muted: keys the player chose not to see again (popup_disabled.txt);
 	//    mutedAll: an older popup_disabled.txt without keys (0.3.0), which mutes every not-running plugin.
-	// The box opens when an item that can be shown is not in seen. Afterwards the caller stores NextSeen():
-	// items that went away are forgotten, so they warn again if they come back.
+	// The box opens on every launch while it has something to list. "Continue" and "Stop game" change nothing;
+	// only "Don't show" (which fills muted) removes plugins from it.
 	struct PopupState
 	{
 		std::vector<std::string> show;    // items to list in the box (empty: no box)
@@ -259,7 +259,7 @@ namespace Vitals::Rules
 	};
 
 	inline PopupState DecidePopup(int a_mode, const std::vector<std::string>& a_crash, const std::vector<std::string>& a_notRunning,
-		const std::set<std::string>& a_seen, const std::set<std::string>& a_muted, bool a_mutedAll)
+		const std::set<std::string>& a_muted, bool a_mutedAll)
 	{
 		PopupState s;
 		if (a_mode <= 0)
@@ -269,23 +269,8 @@ namespace Vitals::Rules
 		for (const auto& k : a_notRunning)
 			if (!a_mutedAll && !a_muted.contains(k))
 				s.show.push_back(k);
-		if (a_mode >= 2)
-			s.open = !s.show.empty();
-		else
-			s.open = std::ranges::any_of(s.show, [&](const std::string& k) { return !a_seen.contains(k); });
+		s.open = !s.show.empty();
 		return s;
-	}
-
-	// a_shownAndKept: the box was shown and the player did not stop the game.
-	inline std::set<std::string> NextSeen(const std::set<std::string>& a_seen, const std::vector<std::string>& a_current, const PopupState& a_state, bool a_shownAndKept)
-	{
-		std::set<std::string> next;
-		for (const auto& k : a_current)
-			if (a_seen.contains(k))
-				next.insert(k);
-		if (a_shownAndKept)
-			next.insert(a_state.show.begin(), a_state.show.end());
-		return next;
 	}
 
 	// ---------------------------------------------------------------- popup key files

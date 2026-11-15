@@ -15,7 +15,7 @@ Vitals is meant to be left installed, so this page says plainly what it reads, w
 - Engine addresses listed in `Vitals\addresses\*.txt`, to compare their first bytes.
 
 ## What it writes
-Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vitals.jsonl` (plus kept history), `breadcrumbs.bin`, `status.json`, `popup_seen.txt`, `popup_disabled.txt`, `hashes.txt`, and, only if you turn it on once, local baselines. Nothing is written anywhere else.
+Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vitals.jsonl` (plus kept history), `breadcrumbs.bin`, `status.json`, `popup_disabled.txt`, `hashes.txt`, and, only if you turn it on once, local baselines. Nothing is written anywhere else.
 
 ## What it sends
 **Nothing.** It has no network code. No telemetry, no update check, no account. Files never leave your PC unless you send them.

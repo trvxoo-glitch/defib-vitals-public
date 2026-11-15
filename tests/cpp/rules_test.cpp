@@ -122,37 +122,30 @@ static void PopupTests()
 {
 	using S = std::set<std::string>;
 	const std::vector<std::string> crash{ "load_order:a.esp" }, dlls{ "plugin_dll:x.dll", "plugin_dll:y.dll" };
-	// first launch: everything is new
-	auto s = DecidePopup(1, crash, dlls, {}, {}, false);
+	std::vector<std::string>       none;
+	// the box opens on every launch while something is listed: nothing is remembered between launches
+	auto s = DecidePopup(1, crash, dlls, {}, false);
 	CHECK(s.open && s.show.size() == 3);
-	// same list again, in another order: no box
-	S seen{ "load_order:a.esp", "plugin_dll:y.dll", "plugin_dll:x.dll" };
-	s = DecidePopup(1, crash, { "plugin_dll:y.dll", "plugin_dll:x.dll" }, seen, {}, false);
-	CHECK(!s.open);
-	// a problem goes away, then comes back: it is forgotten, so it warns again
-	std::vector<std::string> none;
-	auto clean = DecidePopup(1, none, dlls, seen, {}, false);
-	CHECK(!clean.open);
-	S next = NextSeen(seen, dlls, clean, false);
-	CHECK(!next.contains("load_order:a.esp"));
-	s = DecidePopup(1, crash, dlls, next, {}, false);
-	CHECK(s.open);
-	// "Stop game": nothing is recorded as seen, so the box shows again next launch
-	next = NextSeen({}, { "load_order:a.esp" }, s, false);
-	CHECK(next.empty());
-	// "Don't show" mutes not-running plugins only: a new crash risk still opens the box
+	s = DecidePopup(1, crash, dlls, {}, false);
+	CHECK(s.open && s.show.size() == 3);
+	// nothing to list: no box
+	CHECK(!DecidePopup(1, none, none, {}, false).open);
+	// "Don't show" mutes not-running plugins only: a crash risk still opens the box
 	S muted{ "plugin_dll:x.dll", "plugin_dll:y.dll" };
-	s = DecidePopup(1, none, dlls, {}, muted, false);
+	s = DecidePopup(1, none, dlls, muted, false);
 	CHECK(!s.open && s.show.empty());
-	s = DecidePopup(1, crash, dlls, {}, muted, false);
+	s = DecidePopup(1, crash, dlls, muted, false);
 	CHECK(s.open && s.show.size() == 1);
+	// a plugin that is not muted still shows alongside muted ones
+	s = DecidePopup(1, none, { "plugin_dll:x.dll", "plugin_dll:new.dll" }, muted, false);
+	CHECK(s.open && s.show.size() == 1 && s.show[0] == "plugin_dll:new.dll");
 	// a 0.3.0 popup_disabled.txt (no keys) mutes every not-running plugin
-	s = DecidePopup(1, none, { "plugin_dll:new.dll" }, {}, {}, true);
+	s = DecidePopup(1, none, { "plugin_dll:new.dll" }, {}, true);
 	CHECK(!s.open);
-	// mode 0 never, mode 2 always
-	CHECK(!DecidePopup(0, crash, dlls, {}, {}, false).open);
-	CHECK(DecidePopup(2, crash, dlls, seen, {}, false).open);
-	CHECK(!DecidePopup(2, none, none, {}, {}, false).open);
+	// mode 0 never; modes 1 and 2 behave the same
+	CHECK(!DecidePopup(0, crash, dlls, {}, false).open);
+	CHECK(DecidePopup(2, crash, dlls, {}, false).open);
+	CHECK(!DecidePopup(2, none, none, {}, false).open);
 }
 
 // ---------------------------------------------------------------- file readers (Formats.h)
