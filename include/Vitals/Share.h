@@ -22,6 +22,11 @@ namespace Vitals::Share
 	inline constexpr std::size_t      kMaxPackBytes = 8u << 20;  // the whole pack
 
 	// Keep the last a_max bytes, cut at a line start, with a note saying how much was dropped.
+	inline std::string TailNote(std::size_t a_dropped)
+	{
+		return "[Vitals: " + std::to_string(a_dropped) + " older bytes left out; the newest part is kept]\n";
+	}
+
 	inline std::string KeepTail(std::string a_text, std::size_t a_max)
 	{
 		if (a_text.size() <= a_max)
@@ -29,7 +34,18 @@ namespace Vitals::Share
 		std::size_t from = a_text.size() - a_max;
 		const auto  nl = a_text.find('\n', from);
 		from = nl == std::string::npos ? from : nl + 1;
-		return "[Vitals: " + std::to_string(from) + " older bytes left out; the newest part is kept]\n" + a_text.substr(from);
+		return TailNote(from) + a_text.substr(from);
+	}
+
+	// The end of a file read from byte a_from on (the bytes before it were not read): cut at the first line start, and
+	// say how many bytes of the FILE were left out.
+	inline std::string FileTail(std::string a_read, std::size_t a_from)
+	{
+		if (a_from == 0)
+			return a_read;
+		const auto nl = a_read.find('\n');
+		const auto cut = nl == std::string::npos ? 0 : nl + 1;
+		return TailNote(a_from + cut) + a_read.substr(cut);
 	}
 
 	// ---------------- INI allowlist ----------------
@@ -86,8 +102,8 @@ namespace Vitals::Share
 				if (c == '"') {
 					const auto e = a_s.find('"', i + 1);
 					if (e != std::string_view::npos) {
-						const auto inner = a_s.substr(i + 1, e - i - 1);
-						out += Scrub::KeepMemoryString(inner) ? "\"" + std::string(inner) + "\"" : std::string("<text>");
+						const auto inner = a_s.substr(i + 1, e - i - 1);  // Papyrus quotes script, object and function names
+						out += Scrub::KeepMemoryString(inner, true) ? "\"" + std::string(inner) + "\"" : std::string("<text>");
 						i = e + 1;
 						continue;
 					}
@@ -152,6 +168,42 @@ namespace Vitals::Share
 		}
 	}
 
+	namespace detail
+	{
+		// The player is form 00000014, and Papyrus prints a reference's name just before its form id, in any sentence
+		// ("attached to Nora Hale (00000014)", "[Actor <Nora (00000014)>]", "Nate (00000014) is not..."). The word just
+		// before is always taken; earlier words only while they start with a capital (a name), up to 64 characters.
+		inline std::string HidePlayerName(std::string a_body)
+		{
+			auto stop = [](char c) { return c == '<' || c == '[' || c == '(' || c == '"' || c == ',' || c == ':' || c == '>' || c == ']' || c == '\'' || c == '='; };
+			for (auto pl = a_body.find("(00000014)"); pl != std::string::npos; pl = a_body.find("(00000014)", pl + 10)) {
+				std::size_t end = pl;
+				while (end > 0 && a_body[end - 1] == ' ')
+					--end;
+				std::size_t start = end, pos = end;
+				for (bool first = true;; first = false) {
+					std::size_t w = pos;
+					while (w > 0 && a_body[w - 1] != ' ' && !stop(a_body[w - 1]))
+						--w;
+					if (w == pos || end - w > 64 || (!first && !(a_body[w] >= 'A' && a_body[w] <= 'Z')))
+						break;
+					start = w;
+					if (w >= 2 && a_body[w - 1] == ' ' && a_body[w - 2] != ' ' && !stop(a_body[w - 2]))
+						pos = w - 1;  // one space, then another word: maybe more of the name
+					else
+						break;
+				}
+				while (start < end && a_body[start] == ' ')
+					++start;
+				if (start < end) {
+					a_body.replace(start, end - start, "<player>");
+					pl = start + 8 + (pl - end);
+				}
+			}
+			return a_body;
+		}
+	}
+
 	inline std::string PapyrusSummary(std::string_view a_log)
 	{
 		std::map<std::string, std::size_t> unbound, errors, warnings, missing;
@@ -179,14 +231,7 @@ namespace Vitals::Share
 			if (!isError && !isWarning)
 				continue;
 			auto body = std::string(detail::Trim(line.substr(isError ? 6 : 8)));
-			// The player is form 00000014: a name printed just before it is the player character's name.
-			if (const auto pl = body.find("(00000014)"); pl != std::string::npos) {
-				const auto to = body.rfind(" to ", pl);
-				const auto on = body.rfind(" on ", pl);
-				const auto from = to == std::string::npos ? on : on == std::string::npos ? to : std::max(to, on);
-				if (from != std::string::npos && pl - from <= 64)
-					body = body.substr(0, from + 4) + "<player> " + body.substr(pl);
-			}
+			body = detail::HidePlayerName(std::move(body));
 			const auto msg = detail::Normalize(body);
 			if (line.find("Unbound native function") != std::string_view::npos ||
 				(line.find("native function") != std::string_view::npos && line.find("bound") != std::string_view::npos)) {
@@ -219,7 +264,7 @@ namespace Vitals::Share
 			if (v.size() > limit)
 				out += "  ...and " + std::to_string(v.size() - limit) + " more kinds\n";
 		};
-		std::string out = "Papyrus.0.log summary by Vitals: counts only, the log itself is not included. Numbers are shown as #.\n";
+		std::string out = "Papyrus log summary by Vitals: counts only, the log itself is not included. Numbers are shown as #.\n";
 		out += "Lines read: " + std::to_string(lines) + "\n";
 		section(out, "UNBOUND NATIVE FUNCTIONS (an F4SE plugin these scripts need is not running)", unbound, 200);
 		section(out, "MISSING SCRIPTS (Cannot open store for class)", missing, 100);
@@ -309,8 +354,23 @@ namespace Vitals::Share
 		if (filesAt == std::string_view::npos)
 			return out;
 		// each file entry is a flat object: {"relPath": "...", "source": "...", ...}
+		std::string skipped;
 		for (std::size_t p = a_json.find('{', filesAt); p != std::string_view::npos; p = a_json.find('{', p + 1)) {
-			const auto end = a_json.find('}', p);
+			// the end of this entry, stepping over strings: a '}' inside a mod name is not the end
+			std::size_t end = std::string_view::npos;
+			for (std::size_t q = p + 1; q < a_json.size();) {
+				if (a_json[q] == '"') {
+					q = detail::JsonString(a_json, q, skipped);
+					if (q == std::string_view::npos)
+						break;
+					continue;
+				}
+				if (a_json[q] == '}') {
+					end = q;
+					break;
+				}
+				++q;
+			}
 			if (end == std::string_view::npos)
 				break;
 			auto rel = detail::JsonField(a_json, "relPath", p, end);

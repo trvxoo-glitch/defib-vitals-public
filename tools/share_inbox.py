@@ -2,7 +2,7 @@
 """Vitals share-pack inbox: download packs players sent, and turn many packs into one summary of candidate rules.
 
   python tools/share_inbox.py pull-discord --out inbox  download packs players attached in the Discord server
-        (needs VITALS_DISCORD_TOKEN, VITALS_DISCORD_GUILD and optionally VITALS_DISCORD_CATEGORY; see docs/DISCORD_INBOX.md)
+        (needs VITALS_DISCORD_TOKEN, VITALS_DISCORD_GUILD and VITALS_DISCORD_CATEGORY; see docs/DISCORD_INBOX.md)
   python tools/share_inbox.py summary inbox [--out summary.md] [--min-installs 5]
 
 `summary` reads every *.zip in the folder (packs from Discord, or ones players attached to a GitHub issue) and
@@ -37,12 +37,17 @@ DISCORD = "https://discord.com/api/v10"
 
 
 def _discord(path, token, binary=False):
-    """GET from the Discord API as a read-only bot. Waits out rate limits (429)."""
+    """GET from the Discord API as a read-only bot. Waits out rate limits (429). A full URL (an attachment on Discord's
+    file server) is fetched WITHOUT the bot token: it does not need it, and the token goes only to the API."""
     import time
     import urllib.error
+    if path.startswith("http") and not path.startswith("https://"):
+        raise SystemExit(f"Refusing a non-https attachment link: {path.split('?')[0]}")
     for _ in range(6):
-        req = urllib.request.Request(path if path.startswith("http") else DISCORD + path,
-                                     headers={"Authorization": f"Bot {token}", "User-Agent": "DiscordBot (vitals-share-inbox, 1)"})
+        headers = {"User-Agent": "DiscordBot (vitals-share-inbox, 1)"}
+        if not path.startswith("http"):
+            headers["Authorization"] = f"Bot {token}"
+        req = urllib.request.Request(path if path.startswith("http") else DISCORD + path, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 data = r.read()
@@ -56,22 +61,24 @@ def _discord(path, token, binary=False):
 
 
 def pull_discord(out, token=None, guild=None, category=None):
-    """Download every .zip attachment from the text channels of one server (or one category of it, such as the
-    private ticket channels). Files are named <message id>-<file name>, so a second run only fetches new ones."""
+    """Download every .zip attachment from the text channels of one category of a server (the private ticket
+    channels). Files are named <message id>_<attachment id>-<file name>, so a second run only fetches new ones.
+    The category is required: without it the tool would read every channel of the server."""
     token = token or os.environ.get("VITALS_DISCORD_TOKEN", "")
     guild = guild or os.environ.get("VITALS_DISCORD_GUILD", "")
     category = category or os.environ.get("VITALS_DISCORD_CATEGORY", "")
-    if not token or not guild:
-        raise SystemExit("Set VITALS_DISCORD_TOKEN and VITALS_DISCORD_GUILD (see docs/DISCORD_INBOX.md).")
+    if not token or not guild or not category:
+        raise SystemExit("Set VITALS_DISCORD_TOKEN, VITALS_DISCORD_GUILD and VITALS_DISCORD_CATEGORY (see docs/DISCORD_INBOX.md). "
+                         "The category is required, so the tool never reads the whole server.")
     os.makedirs(out, exist_ok=True)
     seen = {f.split("-", 1)[0] for f in os.listdir(out)}
     new = 0
     channels = _discord(f"/guilds/{guild}/channels", token)
     names = {c["id"]: c.get("name", "?") for c in channels}
     text = [c for c in channels if c.get("type") == 0]
-    chosen = [c for c in text if not category or c.get("parent_id") == category]
+    chosen = [c for c in text if c.get("parent_id") == category]
     print(f"Server has {len(text)} text channel(s); {len(chosen)} are in the category to read.")
-    if category and not chosen:
+    if not chosen:
         print("No text channel is in that category id. Where the text channels are (category name -> channels):")
         for c in text[:40]:
             print(f"  {names.get(c.get('parent_id'), '(no category)')} [{c.get('parent_id')}] -> {c.get('name')}")
@@ -106,11 +113,26 @@ def pull_discord(out, token=None, guild=None, category=None):
 
 
 # ---------------------------------------------------------------- reading one pack
+MAX_ENTRY = 16 << 20   # a Vitals pack keeps each file under 4 MB and the whole pack under 24 MB
+MAX_TOTAL = 64 << 20
+MAX_ENTRIES = 200
+
+
 def _text(z, name):
     try:
-        return z.read(name).decode("utf-8", "replace")
+        info = z.getinfo(name)
     except KeyError:
         return ""
+    if info.file_size > MAX_ENTRY:
+        return ""
+    with z.open(info) as f:
+        return f.read(MAX_ENTRY).decode("utf-8", "replace")
+
+
+def _safe_zip(z):
+    """Packs come from strangers: refuse anything far bigger, once unpacked, than a Vitals pack can be (a zip bomb)."""
+    infos = z.infolist()
+    return len(infos) <= MAX_ENTRIES and all(i.file_size <= MAX_ENTRY for i in infos) and sum(i.file_size for i in infos) <= MAX_TOTAL
 
 
 def read_pack(path):
@@ -120,6 +142,9 @@ def read_pack(path):
     except zipfile.BadZipFile:
         return None
     with z:
+        if not _safe_zip(z):
+            print(f"Skipped {os.path.basename(path)}: it unpacks to more than a Vitals pack can (a broken or hostile zip).")
+            return None
         try:
             manifest = json.loads(_text(z, "manifest.json") or "{}")
         except json.JSONDecodeError:

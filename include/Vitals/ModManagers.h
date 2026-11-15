@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Vitals::ModManagers
 {
@@ -49,15 +50,85 @@ namespace Vitals::ModManagers
 		return out;
 	}
 
-	// An MO2 path setting: @ByteArray(...) wrapper, %BASE_DIR% placeholder, forward slashes. Empty in, empty out.
+	// An MO2 path setting: @ByteArray(...) wrapper, Qt's doubled backslashes, %BASE_DIR% placeholder, forward
+	// slashes. Empty in, empty out.
 	inline std::string Mo2Path(std::string a_value, std::string_view a_baseDir)
 	{
 		if (a_value.starts_with("@ByteArray(") && a_value.ends_with(")"))
 			a_value = a_value.substr(11, a_value.size() - 12);
+		std::string unescaped;  // Qt writes a backslash in an INI value as two
+		for (std::size_t i = 0; i < a_value.size(); ++i) {
+			unescaped += a_value[i];
+			if (a_value[i] == '\\' && i + 1 < a_value.size() && a_value[i + 1] == '\\')
+				++i;
+		}
+		a_value = std::move(unescaped);
 		if (const auto at = Lower(a_value).find("%base_dir%"); at != std::string::npos)
 			a_value.replace(at, 10, a_baseDir);
 		std::ranges::replace(a_value, '/', '\\');
+		while (a_value.size() > 3 && a_value.back() == '\\')
+			a_value.pop_back();
 		return a_value;
+	}
+
+	// The same folder, written two ways ("D:\\Games\\Fallout 4\\" and "d:/games/fallout 4")?
+	inline bool SameDir(std::string a, std::string b)
+	{
+		for (auto* s : { &a, &b }) {
+			std::ranges::replace(*s, '/', '\\');
+			while (s->size() > 3 && s->back() == '\\')
+				s->pop_back();
+			*s = Lower(*s);
+		}
+		return !a.empty() && a == b;
+	}
+
+	// The game folder an MO2 instance manages ([General] gamePath), so only a Fallout 4 instance is used: the same
+	// %LOCALAPPDATA%\ModOrganizer folder holds the instances of every game.
+	inline std::string Mo2GamePath(std::string_view a_iniText)
+	{
+		const auto ini = SimpleIni(a_iniText);
+		const auto it = ini.find("general/gamepath");
+		return it == ini.end() ? std::string{} : Mo2Path(it->second, {});
+	}
+
+	// The folder of the profile an MO2 instance has selected (its modlist.txt says which mods are on, and in what order).
+	inline std::string Mo2ProfileDir(std::string_view a_iniText, std::string_view a_instanceDir)
+	{
+		const auto ini = SimpleIni(a_iniText);
+		std::string base(a_instanceDir);
+		if (const auto it = ini.find("settings/base_directory"); it != ini.end() && !it->second.empty())
+			base = Mo2Path(it->second, a_instanceDir);
+		std::string profile = "Default";
+		if (const auto it = ini.find("general/selected_profile"); it != ini.end() && !it->second.empty())
+			profile = Mo2Path(it->second, {});
+		std::string dir = base.empty() ? std::string{} : base + "\\profiles";
+		if (const auto it = ini.find("settings/profiles_directory"); it != ini.end() && !it->second.empty())
+			dir = Mo2Path(it->second, base);
+		return dir.empty() ? std::string{} : dir + "\\" + profile;
+	}
+
+	// A profile's modlist.txt, highest priority first (MO2 writes the mod that wins file conflicts, the bottom of
+	// its left pane, at the top of the file). "+Name" is on, "-Name" is off; "*Name" (DLC, unmanaged) is skipped.
+	struct ModListEntry
+	{
+		std::string name;
+		bool        enabled{ false };
+	};
+	inline std::vector<ModListEntry> Mo2ModList(std::string_view a_text)
+	{
+		std::vector<ModListEntry> out;
+		while (!a_text.empty()) {
+			const auto nl = a_text.find('\n');
+			auto       line = a_text.substr(0, nl);
+			a_text = nl == std::string_view::npos ? std::string_view{} : a_text.substr(nl + 1);
+			while (!line.empty() && (line.back() == '\r' || line.back() == ' '))
+				line.remove_suffix(1);
+			if (line.size() < 2 || (line[0] != '+' && line[0] != '-'))
+				continue;
+			out.push_back({ std::string(line.substr(1)), line[0] == '+' });
+		}
+		return out;
 	}
 
 	// The mods folder of an MO2 instance from its ModOrganizer.ini text and the folder that ini is in.
@@ -88,39 +159,67 @@ namespace Vitals::ModManagers
 		return { get("version"), get("newestversion"), get("modid") };
 	}
 
-	// "1.2.3" vs "1.10" by numbers; true when a_newer is a higher version than a_have. Text that is not numbers
-	// (a "d" prefix, dates) compares field by field as text.
+	// "1.2.3" vs "1.10" by numbers; true only when a_newer is clearly a higher version than a_have. A leading "v" is
+	// ignored and missing fields count as 0 (5.0 == 5.0.0). After equal numbers, a release beats its own pre-release
+	// ("2.0" is newer than "2.0-beta", never the reverse) and "1.2b" beats "1.2a" or "1.2". Anything else that is not
+	// clearly newer (text the numbers do not explain, a date, an empty side) is false: a wrong "update available" sends
+	// the player to download what they already have.
 	inline bool NewerVersion(std::string_view a_newer, std::string_view a_have)
 	{
-		auto next = [](std::string_view& s) {
-			while (!s.empty() && !(s.front() >= '0' && s.front() <= '9') && s.front() != '.')
-				s.remove_prefix(1);
-			std::string_view f = s.substr(0, s.find('.'));
-			s = f.size() < s.size() ? s.substr(f.size() + 1) : std::string_view{};
-			return f;
+		struct V
+		{
+			std::vector<std::string> nums;
+			std::string              suffix;
 		};
-		std::string_view a = a_newer, b = a_have;
-		if (a.empty() || b.empty())
-			return false;
-		for (int i = 0; i < 8 && (!a.empty() || !b.empty()); ++i) {
-			auto x = next(a), y = next(b);
-			if (x.empty())
-				x = "0";  // 5.0 == 5.0.0
-			if (y.empty())
-				y = "0";
-			const bool xn = !x.empty() && std::ranges::all_of(x, [](char c) { return c >= '0' && c <= '9'; });
-			const bool yn = !y.empty() && std::ranges::all_of(y, [](char c) { return c >= '0' && c <= '9'; });
-			if (xn && yn) {
-				const auto xs = x.substr(std::min(x.find_first_not_of('0'), x.size() - 1));
-				const auto ys = y.substr(std::min(y.find_first_not_of('0'), y.size() - 1));
-				if (xs.size() != ys.size())
-					return xs.size() > ys.size();
-				if (xs != ys)
-					return xs > ys;
-			} else if (x != y) {
-				return x > y;
+		auto isDigit = [](char c) { return c >= '0' && c <= '9'; };
+		auto parse = [&](std::string_view s) {
+			V v;
+			while (!s.empty() && (s.front() == ' ' || s.front() == 'v' || s.front() == 'V'))
+				s.remove_prefix(1);
+			while (!s.empty() && isDigit(s.front())) {
+				std::size_t n = 0;
+				while (n < s.size() && isDigit(s[n]))
+					++n;
+				auto num = s.substr(0, n);
+				while (num.size() > 1 && num.front() == '0')
+					num.remove_prefix(1);
+				v.nums.emplace_back(num);
+				s.remove_prefix(n);
+				if (s.size() >= 2 && s[0] == '.' && isDigit(s[1]))
+					s.remove_prefix(1);
+				else
+					break;
 			}
+			while (!s.empty() && (s.front() == '-' || s.front() == '_' || s.front() == '.' || s.front() == ' '))
+				s.remove_prefix(1);
+			while (!s.empty() && s.back() == ' ')
+				s.remove_suffix(1);
+			v.suffix = Lower(std::string(s));
+			return v;
+		};
+		const auto a = parse(a_newer), b = parse(a_have);
+		if (a.nums.empty() || b.nums.empty())
+			return false;
+		for (std::size_t i = 0; i < std::max(a.nums.size(), b.nums.size()); ++i) {
+			const std::string x = i < a.nums.size() ? a.nums[i] : "0", y = i < b.nums.size() ? b.nums[i] : "0";
+			if (x.size() != y.size())
+				return x.size() > y.size();
+			if (x != y)
+				return x > y;
 		}
+		auto letter = [](const std::string& s) { return s.size() == 1 && s[0] >= 'a' && s[0] <= 'z'; };
+		auto pre = [](const std::string& s) {
+			for (const char* w : { "alpha", "beta", "rc", "pre", "dev", "test", "wip", "preview" })
+				if (s.starts_with(w))
+					return true;
+			return false;
+		};
+		if (a.suffix == b.suffix)
+			return false;
+		if (a.suffix.empty())
+			return pre(b.suffix);                   // 2.0 vs 2.0-beta
+		if (letter(a.suffix))
+			return b.suffix.empty() ? true : letter(b.suffix) && a.suffix > b.suffix;  // 1.2b vs 1.2 or 1.2a
 		return false;
 	}
 

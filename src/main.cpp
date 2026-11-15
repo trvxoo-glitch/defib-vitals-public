@@ -87,17 +87,24 @@ namespace
 		static std::once_flag once;
 		std::call_once(once, [&]() {
 			F4SE::Init(a_f4se, { .logName = "Vitals", .hook = false });  // passive: no hooks, ever
-			Vitals::LoadSettings();
-			Vitals::OpenReport();
-			Vitals::InitBreadcrumbs();
-			Vitals::Crumb("Vitals", "load");
-			Vitals::Emit("start", Vitals::Json()
-				.Str("vitals_version", F4SE::GetPluginVersion().string())
-				.Bool("papyrus_natives", Vitals::GetSettings().papyrusNatives)
-				.Bool("layout_probes", Vitals::GetSettings().layoutProbes)
-				.Bool("doctor", Vitals::GetSettings().doctor));
-			if (const auto msg = F4SE::GetMessagingInterface())
-				msg->RegisterListener(OnMessage);
+			// Each step on its own: a file that cannot be read must not stop the rest, or reach F4SE.
+			Vitals::Guarded("settings", Vitals::LoadSettings);
+			Vitals::Guarded("open_report", Vitals::OpenReport);
+			Vitals::Guarded("breadcrumbs", [] {
+				Vitals::InitBreadcrumbs();
+				Vitals::Crumb("Vitals", "load");
+			});
+			Vitals::Guarded("start", [] {
+				Vitals::Emit("start", Vitals::Json()
+					.Str("vitals_version", F4SE::GetPluginVersion().string())
+					.Bool("papyrus_natives", Vitals::GetSettings().papyrusNatives)
+					.Bool("layout_probes", Vitals::GetSettings().layoutProbes)
+					.Bool("doctor", Vitals::GetSettings().doctor));
+			});
+			Vitals::Guarded("listener", [] {
+				if (const auto msg = F4SE::GetMessagingInterface())
+					msg->RegisterListener(OnMessage);
+			});
 			isInit = true;
 		});
 		return isInit;

@@ -65,6 +65,10 @@ namespace Vitals
 	std::string Lower(std::string a_text);
 	std::wstring Widen(std::string_view a_utf8);
 	std::optional<std::chrono::sys_seconds> FileTimeToSys(std::filesystem::file_time_type a_t);  // never throws
+	// Up to a_max bytes of a file; empty when it cannot be read. Never throws for a missing or locked file.
+	std::vector<std::uint8_t> ReadBytes(const std::filesystem::path& a_file, std::size_t a_max);
+	// The entries of one folder (not recursive), at most a_max. Never throws; an unreadable folder gives what was read.
+	std::vector<std::filesystem::directory_entry> ListDir(const std::filesystem::path& a_dir, std::size_t a_max = 100'000);
 
 	// ---- Address Library, read by Vitals itself (never through CommonLib's REL::IDDB, which ends the game) ----
 	struct AddressLibraryInfo

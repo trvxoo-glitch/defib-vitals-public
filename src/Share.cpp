@@ -14,9 +14,10 @@
 // would carry more than needed (include/Vitals/Share.h). Vitals has no network code: the player decides whether to send
 // the zip and where. The full list and the reasons are in docs/PRIVACY_AND_SAFETY.md.
 //
-// Written twice per launch, on a background thread so the game never waits: at PostPostLoad (so the previous
-// session's log and a crash log from it are packed even if this launch never reaches the menu) and at the main menu
-// (with this session's address check).
+// Written twice per launch, on a background thread so the game never waits: at PostPostLoad, right after the report
+// and the start-up box (so the previous session's logs and a crash log from it are packed even if this launch never
+// reaches the menu), and again at the main menu (with this session's address check). Both Papyrus logs are summed up,
+// so the second write does not lose the previous session's Papyrus errors.
 
 // kernel32 functions CommonLib's REX::W32 does not declare.
 extern "C" __declspec(dllimport) int __stdcall GlobalMemoryStatusEx(void* a_status);
@@ -26,6 +27,7 @@ namespace Vitals
 	namespace
 	{
 		std::mutex g_shareLock;
+		const auto g_started = std::filesystem::file_time_type::clock::now();  // when Vitals was loaded: this launch
 
 		std::filesystem::path MarkerFile() { return PluginDir() / L"Vitals" / L"share-optin.txt"; }
 		std::filesystem::path PackFile() { return OutputDir() / L"Vitals-Share.zip"; }
@@ -55,9 +57,7 @@ namespace Vitals
 			std::string data(size - from, '\0');
 			in.read(data.data(), static_cast<std::streamsize>(data.size()));
 			data.resize(static_cast<std::size_t>(in.gcount()));
-			if (from > 0)
-				return Share::KeepTail("\n" + data, a_max);  // the leading newline lets KeepTail cut at a line start
-			return data;
+			return Share::FileTail(std::move(data), from);
 		}
 
 		// A random id, made once, so packs from the same install can be counted together without saying whose they
@@ -173,12 +173,19 @@ namespace Vitals
 				out += std::format("\n{}\n", Narrow(file));
 				for (const auto& k : Share::kIniKeys) {
 					constexpr const wchar_t* kMissing = L"\x01";
-					wchar_t                  buf[512]{};
 					const auto               section = Widen(k.section), key = Widen(k.key);
-					const auto               n = REX::W32::GetPrivateProfileStringW(section.c_str(), key.c_str(), kMissing, buf, 512, path.c_str());
-					const std::wstring       v(buf, n);
+					// GetPrivateProfileStringW cuts a long value without saying so (it returns size - 1): grow the
+					// buffer until the value fits. SResourceArchiveList and friends run to several KB on a big setup.
+					std::wstring v;
+					bool         cut = true;
+					for (std::uint32_t size = 1024; size <= (64u << 10) && cut; size *= 4) {
+						std::vector<wchar_t> buf(size);
+						const auto           n = REX::W32::GetPrivateProfileStringW(section.c_str(), key.c_str(), kMissing, buf.data(), size, path.c_str());
+						v.assign(buf.data(), n);
+						cut = n >= size - 1;
+					}
 					if (v != kMissing)
-						out += std::format("  [{}] {}={}\n", k.section, k.key, Narrow(v));
+						out += std::format("  [{}] {}={}{}\n", k.section, k.key, Narrow(v), cut ? "  [Vitals: value longer than 64K characters, the rest was cut]" : "");
 				}
 			}
 			return out;
@@ -190,7 +197,7 @@ namespace Vitals
 			std::vector<std::pair<std::filesystem::file_time_type, std::filesystem::path>> found;
 			std::error_code                                                               ec;
 			const auto                                                                    now = std::filesystem::file_time_type::clock::now();
-			for (const auto& e : std::filesystem::directory_iterator(MyGames() / L"F4SE", ec)) {
+			for (const auto& e : ListDir(MyGames() / L"F4SE")) {
 				const auto name = Lower(Narrow(e.path().filename().wstring()));
 				if (!name.starts_with("crash-") || !name.ends_with(".log"))
 					continue;
@@ -214,8 +221,8 @@ namespace Vitals
 
 			// Vortex: which mod folder deployed each DLL, and the staging folder to shorten.
 			Share::VortexDlls vortex;
-			if (const auto manifest = ReadTail(GameDir() / L"Data" / L"vortex.deployment.json", 64u << 20); !manifest.empty())
-				vortex = Share::ParseVortexManifest(manifest);
+			if (const auto manifest = ReadBytes(GameDir() / L"Data" / L"vortex.deployment.json", 128u << 20); !manifest.empty())
+				vortex = Share::ParseVortexManifest(std::string_view(reinterpret_cast<const char*>(manifest.data()), manifest.size()));
 
 			Scrub::Context ctx;
 			ctx.user = EnvU(L"USERNAME");
@@ -235,10 +242,11 @@ namespace Vitals
 			std::vector<std::pair<std::string, std::string>> files;  // name in zip, scrubbed text
 			std::vector<std::string>                         leftOut;
 			std::size_t                                      total = 0;
-			auto add = [&](std::string a_name, std::string a_text, bool a_crash = false) {
+			auto add = [&](std::string a_name, std::string a_text, bool a_crash = false, bool a_trimmed = false) {
 				if (a_text.empty())
 					return;
-				a_text = Share::KeepTail(std::move(a_text), Share::kMaxFileBytes);
+				if (!a_trimmed)  // a file's tail is already cut, and says how much of the file was left out
+					a_text = Share::KeepTail(std::move(a_text), Share::kMaxFileBytes);
 				auto clean = a_crash ? Scrub::CrashLog(a_text, ctx, counts) : Scrub::Text(a_text, ctx, counts);
 				if (total + clean.size() > Share::kMaxPackBytes) {
 					leftOut.push_back(std::move(a_name));
@@ -248,7 +256,7 @@ namespace Vitals
 				files.emplace_back(std::move(a_name), std::move(clean));
 			};
 			auto addFile = [&](std::string a_name, const std::filesystem::path& a_path, bool a_crash = false) {
-				add(std::move(a_name), ReadTail(a_path, Share::kMaxFileBytes), a_crash);
+				add(std::move(a_name), ReadTail(a_path, Share::kMaxFileBytes), a_crash, true);
 			};
 
 			// most useful first, so the size cap drops the oldest data before the report
@@ -257,16 +265,39 @@ namespace Vitals
 			addFile("status.json", out / L"status.json");
 			addFile("f4se.log", myGames / L"F4SE" / L"f4se.log");
 			addFile("f4se_loader.log", myGames / L"F4SE" / L"f4se_loader.log");
-			for (const auto& c : CrashLogs())
-				addFile("crash/" + Narrow(c.filename().wstring()), c, true);
+			{
+				// Zip entry names are not scrubbed text: keep a logger's name only when it is just a date
+				// (crash-2026-11-15-10-42-18.log); anything else (a character or user name in it) becomes crash-N.log.
+				int n = 0;
+				for (const auto& c : CrashLogs()) {
+					++n;
+					auto name = Lower(Narrow(c.filename().wstring()));
+					const auto stem = std::string_view(name).substr(6, name.size() - 10);  // between "crash-" and ".log"
+					if (stem.empty() || !std::ranges::all_of(stem, [](char ch) { return (ch >= '0' && ch <= '9') || ch == '-' || ch == '_'; }))
+						name = std::format("crash-{}.log", n);
+					addFile("crash/" + name, c, true);
+				}
+			}
 			addFile("plugins.txt", std::filesystem::path(Widen(EnvU(L"LOCALAPPDATA"))) / L"Fallout4" / L"plugins.txt");
 			addFile("Fallout4.ccc", GameDir() / L"Fallout4.ccc");
 			add("ini-settings.txt", IniText());
 			add("system.txt", SystemText());
 			if (!vortex.dlls.empty())
 				add("dll-sources.txt", Share::DllSourcesText(vortex));
-			if (const auto papyrus = myGames / L"Logs" / L"Script" / L"Papyrus.0.log"; std::filesystem::exists(papyrus, ec))
-				add("papyrus-summary.txt", Share::PapyrusSummary(ReadTail(papyrus, 32u << 20)));
+			{
+				// The game moves Papyrus.0.log to Papyrus.1.log when its script engine starts, which is before the main
+				// menu: at the main-menu write, the session that had the problems is Papyrus.1.log. Both are summed up.
+				std::string papyrus;
+				for (const wchar_t* name : { L"Papyrus.0.log", L"Papyrus.1.log" }) {
+					const auto file = myGames / L"Logs" / L"Script" / name;
+					if (!std::filesystem::exists(file, ec))
+						continue;
+					const auto when = std::filesystem::last_write_time(file, ec);
+					papyrus += std::format("== {} ({}) ==\n{}\n", Narrow(name), !ec && when >= g_started ? "this launch" : "an earlier launch",
+						Share::PapyrusSummary(ReadTail(file, 32u << 20)));
+				}
+				add("papyrus-summary.txt", papyrus);
+			}
 			{
 				std::string crumbs;
 				for (const auto* name : { L"breadcrumbs.prev.bin", L"breadcrumbs.bin" }) {
@@ -305,7 +336,8 @@ namespace Vitals
 
 			Zip::Writer zip(Zip::DosTime::From(static_cast<int>(today.year()), static_cast<int>(static_cast<unsigned>(today.month())),
 				static_cast<int>(static_cast<unsigned>(today.day()))));
-			zip.Add("manifest.json", manifest + "\n");
+			Scrub::Counts manifestCounts;  // versions, file names and the install id; scrubbed like every other file
+			zip.Add("manifest.json", Scrub::Text(manifest, ctx, manifestCounts) + "\n");
 			for (const auto& [name, text] : files)
 				zip.Add(name, text);
 			const auto bytes = zip.Finish();
@@ -317,11 +349,21 @@ namespace Vitals
 				if (!f)
 					return;
 			}
+			const auto fallback = out / L"Vitals-Share-new.zip";
 			std::filesystem::rename(tmp, PackFile(), ec);
 			if (ec) {
-				std::filesystem::remove(tmp, ec);
+				// Vitals-Share.zip is open in another program (Explorer's zip view, Discord's upload): keep this launch's
+				// pack under another name and say so, rather than leave last launch's pack looking current.
+				std::error_code ec2;
+				std::filesystem::rename(tmp, fallback, ec2);
+				if (ec2)
+					std::filesystem::remove(tmp, ec2);
+				Summary(std::format("Vitals: could not replace Vitals-Share.zip ({}; is it open in another program?). {}", ec.message(),
+					ec2 ? "This launch's pack was not saved." : "This launch's pack is Vitals-Share-new.zip."));
+				Emit("error", Json().Str("step", "share_pack").Str("what", "rename: " + ec.message()).Bool("saved_as_new", !ec2));
 				return;
 			}
+			std::filesystem::remove(fallback, ec);
 			std::size_t scrubbed = 0;
 			for (const auto& [k, n] : counts)
 				scrubbed += n;
@@ -334,8 +376,16 @@ namespace Vitals
 		const auto setting = GetSettings().sharePack;
 		if (setting >= 0)
 			return setting == 1;
-		std::error_code ec;
-		return std::filesystem::exists(MarkerFile(), ec);
+		// The installer writes the marker for both answers: "share=1" for Yes, "share=0" for No thanks (so a reinstall
+		// that picks No replaces an earlier Yes). Only share=1 turns the pack on.
+		std::ifstream in(MarkerFile());
+		std::string   line;
+		for (int i = 0; i < 20 && std::getline(in, line); ++i) {
+			std::erase_if(line, [](char c) { return c == ' ' || c == '\t' || c == '\r'; });
+			if (Lower(line) == "share=1")
+				return true;
+		}
+		return false;
 	}
 
 	void WriteSharePack(std::string_view a_when)
@@ -345,6 +395,7 @@ namespace Vitals
 			std::scoped_lock l(g_shareLock);
 			std::error_code  ec;
 			std::filesystem::remove(PackFile(), ec);
+			std::filesystem::remove(OutputDir() / L"Vitals-Share-new.zip", ec);
 			std::filesystem::remove(IdFile(), ec);
 			return;
 		}
@@ -356,11 +407,13 @@ namespace Vitals
 		if (!SharePackEnabled())
 			return {};
 		return "\nHOW TO HELP (you chose to help improve Vitals)\n"
-		       "  Vitals made a log pack with your personal details removed. Vitals never sends it for you. To share it:\n"
+		       "  Vitals writes a log pack with your personal details removed, Vitals-Share.zip, a few seconds after this report\n"
+		       "  and again when the main menu is up. Vitals never sends it for you. To share it:\n"
 		       "    1. Join https://discord.gg/XghtBZUFNW and press the Send my pack button.\n"
 		       "    2. Drag Vitals-Share.zip (it is in this same folder) into the private channel that opens.\n"
 		       "  Only the Vitals maintainer can see that channel. Open the zip first if you want to see what is in it.\n"
 		       "  No Discord? Attach the zip to an issue at https://github.com/trvxoo-glitch/defib-vitals-public/issues instead.\n"
+		       "  If Vitals-Share.zip was open in another program, this launch's pack is Vitals-Share-new.zip instead.\n"
 		       "  Stop making the pack: set bSharePack=0 in Vitals.ini, or delete Data\\F4SE\\Plugins\\Vitals\\share-optin.txt.\n";
 	}
 }

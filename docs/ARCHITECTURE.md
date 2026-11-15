@@ -50,6 +50,7 @@ and a message box there appears before a load-order crash at the main menu.
 | `src/Common.cpp` | Settings, output folder, `Emit` (jsonl), `Summary`, `Json` builder, `Redact`, `SafeRead`, module lookup by address, history rotation |
 | `src/Environment.cpp` | Game build, F4SE version, every DLL with its F4SE data and whether it is in the process |
 | `src/Doctor.cpp` | Plugin doctor: PE parsing, plain-language reasons (`Explain`), f4se.log lines, knowledge rules (with per-runtime tags), load order and masters, report, message box (with Copy report) |
+| `src/ModScan.cpp` | What Vortex or MO2 knows about the not-running DLLs: the deploying mod, other installed copies, the mod manager's update check (one bounded pass) |
 | `src/Share.cpp` | Opt-in share pack: picks the files, builds the scrub context (known folders, user and PC name, Vortex staging), summaries, `Vitals-Share.zip`, the report's share section |
 | `include/Vitals/Scrub.h` | The share-pack scrubber, plain C++20. Tested by `tests/cpp/rules_test.cpp` with `tests/scrub_cases.txt`; the share packs are scrubbed once, by this code, before the zip is written |
 | `include/Vitals/Share.h` | Share-pack summaries that need no game: Papyrus log counts, Vortex manifest to DLL sources, breadcrumbs as text, the INI allowlist, size caps |
@@ -91,14 +92,20 @@ and a message box there appears before a load-order crash at the main menu.
    The build date is checked against the linker version in the PE header (`Formats::LinkerFloor`: no DLL predates the
    Visual Studio release that made it). A date earlier than that is ignored; a linker released after April 2024 alone
    puts the DLL in the "after" group.
-   Then the mod manager's own data (`include/Vitals/ModManagers.h`): Vortex's `vortex.deployment.json` gives the
-   staging folder; under MO2 (`usvfs_x64.dll` loaded) the portable `ModOrganizer.ini` next to it, or the instances in
-   `%LOCALAPPDATA%\ModOrganizer`, give the mods folder. Every mod there with its own `F4SE\Plugins\<dll>` is read
-   and judged by `Loader::Check`; a copy that would run becomes the advice ("make that mod win the file conflict").
+   Then the mod manager's own data (`src/ModScan.cpp`, parsing in `include/Vitals/ModManagers.h`), once for all the
+   not-running DLLs together, with a 2-second budget because it runs before the start-up box. Under MO2
+   (`usvfs_x64.dll` loaded) the portable `ModOrganizer.ini` next to it, or else the instance in
+   `%LOCALAPPDATA%\ModOrganizer` whose `gamePath` is this game folder (the newest if several), gives the mods folder
+   and the selected profile; its `modlist.txt` (first line wins) says which mod's copy the game sees. Otherwise
+   Vortex's `vortex.deployment.json` gives the staging folder and the deploying mod. One walk lists each mod's
+   `F4SE\Plugins` folder; copies that are byte-identical to the deployed file are skipped, the others are read and
+   judged by `Loader::Check`. A copy that would run (or, on Old-Gen, may run) is added to the advice ("make that mod
+   win the file conflict"); a knowledge rule's advice stays first.
    The mod manager's update check is reported when its `newestVersion` is newer than `version`: MO2's `meta.ini`, or
    for Vortex `persistent.mods.fallout4.<id>.attributes` in the newest `%APPDATA%\Vortex\temp\state_backups_full\*.json`
    (its full state backup; the live state is a LevelDB database), matched by `installationPath`. All of this only reads files, and only
-   for DLLs that are not running.
+   for DLLs that are not running. A Vortex state backup over 64 MB is skipped. Each doctor check runs on its own, so
+   one that stops early leaves a line in the report and the others, the report and the box still run.
 6. **Load order.** Base masters, then `Fallout4.ccc` entries present in Data, then active (`*`) lines of
    `%LOCALAPPDATA%\Fallout4\plugins.txt`. Under MO2 the virtual file system makes the profile's file appear
    there. Each plugin's TES4 header gives the master flag (0x1), the light flag (0x200) and the `MAST` list. Masters

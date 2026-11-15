@@ -147,17 +147,24 @@ DLL the rules accept: `independent`, `listed`. Defined in `include/Vitals/Rules.
 
 ## Share pack: Vitals-Share.zip (opt-in, 0.4.0)
 
-On when `Data\F4SE\Plugins\Vitals\share-optin.txt` exists (the installer's opt-in page puts it there) unless
-`Vitals.ini` sets `bSharePack=0`; `bSharePack=1` turns it on without the file. Off: the next launch deletes
-`Vitals-Share.zip` and `share-id.txt`. Written on a background thread at PostPostLoad and again at the main menu
-(`Vitals-Share.zip.tmp`, then renamed over the old one).
+On when `Data\F4SE\Plugins\Vitals\share-optin.txt` has a `share=1` line (the installer's **Yes** option; **No
+thanks** installs the same file with `share=0`, and a file with neither, such as an early 0.4.0 test build's, is off)
+unless `Vitals.ini` sets `bSharePack=0`; `bSharePack=1` turns it on without the file. Off: the next launch deletes
+`Vitals-Share.zip`, `Vitals-Share-new.zip` and `share-id.txt`. Written on a background thread at PostPostLoad (after
+the report and the start-up box) and again at the main menu (`Vitals-Share.zip.tmp`, then renamed over the old one;
+when the old one is open in another program, renamed to `Vitals-Share-new.zip` and a line in `Vitals-summary.txt`
+says so).
 
 A zip with **stored** (uncompressed) entries and UTF-8 names (`include/Vitals/Zip.h`). Entries, in this order:
 `manifest.json`, `Vitals-Report.txt`, `Vitals-summary.txt`, `status.json`, `f4se.log`, `f4se_loader.log`,
 `crash/crash-*.log`, `plugins.txt`, `Fallout4.ccc`, `ini-settings.txt`, `system.txt`, `dll-sources.txt` (Vortex),
 `papyrus-summary.txt`, `breadcrumbs.txt`, `popup_disabled.txt`, `Vitals.jsonl`, `Vitals.prev.jsonl`,
-`scrub-report.txt`. A missing source file is left out. Every entry except
-`manifest.json` passed through `include/Vitals/Scrub.h` (crash logs through `Scrub::CrashLog`). Each source keeps its
+`scrub-report.txt`. A missing source file is left out. Every entry, `manifest.json` too, passed through
+`include/Vitals/Scrub.h` (crash logs through `Scrub::CrashLog`). A crash log keeps its file name only when it is a
+date (`crash-2026-11-15-10-42-18.log`); otherwise it is `crash/crash-1.log` and so on. `papyrus-summary.txt` has one
+section per Papyrus log (`== Papyrus.0.log (this launch) ==`, `== Papyrus.1.log (an earlier launch) ==`, by file
+date against Vitals' start). A file cut to its newest part starts with `[Vitals: N older bytes left out; ...]`, N
+counted in the original file. Each source keeps its
 newest 2 MB (a first line `[Vitals: N older bytes left out ...]` says so); files that would take the pack past 8 MB are
 left out and named in the manifest. These are the only names in a pack.
 

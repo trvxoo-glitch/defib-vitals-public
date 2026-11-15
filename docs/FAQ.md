@@ -28,8 +28,9 @@
 of your logs with personal details scrubbed out, and you decide whether to send it. See
 [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
-**I opted in to the share pack. How do I stop it?** Delete `Data\F4SE\Plugins\Vitals\share-optin.txt`, or set
-`bSharePack=0` in `Vitals.ini`. The next launch deletes the pack and its random id.
+**I opted in to the share pack. How do I stop it?** Reinstall and pick **No thanks**, delete
+`Data\F4SE\Plugins\Vitals\share-optin.txt`, or set `bSharePack=0` in `Vitals.ini`. The next launch deletes the pack
+and its random id.
 
 **Can a rule apply to one game version only?** Yes, since 0.4.0: write the kind as `oldfile@NG,AE` (see
 [FILE_FORMATS.md](FILE_FORMATS.md#knowledge-rules-dataf4sepluginsvitalsknowledgetxt)).

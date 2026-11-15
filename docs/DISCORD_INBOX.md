@@ -38,7 +38,9 @@ committed.
    ```
 
    A second run fetches only new files (names are `<message id>_<attachment id>-<name>`). Files that are not Vitals
-   packs are ignored by `summary`.
+   packs are ignored by `summary`. The category id is required: the tool refuses to run without it rather than read
+   every channel of the server. The bot token is sent only to Discord's API, never to the attachment download links,
+   and `summary` skips any zip that unpacks to more than a Vitals pack can (16 MB per file, 64 MB in all).
 5. Put `inbox` and `summary.md` in the project's shared folder. Claude reads the summary first (counts and file names
    only) and opens single packs only to check a candidate rule.
 

@@ -3,6 +3,7 @@
 #include "Vitals/ModManagers.h"
 #include "Vitals/Rules.h"
 #include "Vitals/Share.h"
+#include "ModScan.h"
 
 #include <sstream>
 
@@ -58,19 +59,7 @@ namespace Vitals
 		using Rules::Trim;
 		namespace Loader = Rules::Loader;
 
-		std::vector<std::uint8_t> ReadFile(const std::filesystem::path& a_file, std::size_t a_max)
-		{
-			std::vector<std::uint8_t> data;
-			std::ifstream             in(a_file, std::ios::binary);
-			if (!in)
-				return data;
-			std::error_code ec;
-			const auto      size = std::filesystem::file_size(a_file, ec);
-			data.resize(static_cast<std::size_t>(std::min<std::uintmax_t>(ec ? 0 : size, a_max)));
-			in.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size()));
-			data.resize(static_cast<std::size_t>(in.gcount()));
-			return data;
-		}
+		std::vector<std::uint8_t> ReadFile(const std::filesystem::path& a_file, std::size_t a_max) { return ReadBytes(a_file, a_max); }
 
 		bool Contains(const std::vector<std::uint8_t>& a_hay, std::string_view a_needle)
 		{
@@ -275,7 +264,14 @@ namespace Vitals
 			std::string best;
 			for (const auto& l : a_log) {
 				const auto low = Lower(l);
-				if (low.find(key) == std::string::npos)
+				// The whole file name: "x.dll" must not match a line about "max.dll".
+				bool named = false;
+				for (auto at = low.find(key); at != std::string::npos && !named; at = low.find(key, at + 1)) {
+					const auto before = at ? static_cast<unsigned char>(low[at - 1]) : ' ';
+					const auto after = at + key.size() < low.size() ? static_cast<unsigned char>(low[at + key.size()]) : ' ';
+					named = !std::isalnum(before) && before != '_' && before != '-' && before != '.' && !std::isalnum(after);
+				}
+				if (!named)
 					continue;
 				if (low.find("disabled") != std::string::npos || low.find("incompatible") != std::string::npos ||
 					low.find("couldn't") != std::string::npos || low.find("could not") != std::string::npos ||
@@ -299,7 +295,7 @@ namespace Vitals
 			std::vector<Rule>                   rules;
 			std::error_code                    ec;
 			std::vector<std::filesystem::path> files;
-			for (const auto& e : std::filesystem::directory_iterator(PluginDir() / L"Vitals" / L"knowledge", ec))
+			for (const auto& e : ListDir(PluginDir() / L"Vitals" / L"knowledge"))
 				if (e.path().extension() == L".txt")
 					files.push_back(e.path());
 			std::ranges::sort(files);
@@ -372,142 +368,39 @@ namespace Vitals
 			return std::chrono::sys_days{ ymd };
 		}
 
-		// ---------------- What the mod manager knows (no Nexus page, no copy of the mod needed) ----------------
-		// Vortex: Data\vortex.deployment.json names the mod each file came from and the staging folder that holds every
-		// installed mod. MO2: the game runs under usvfs_x64.dll, which lives in the MO2 folder; its ModOrganizer.ini
-		// (portable) or %LOCALAPPDATA%\ModOrganizer\<instance>\ModOrganizer.ini gives the mods folder. Read once, and only
-		// when a DLL is not running.
-		struct Managers
+		// ---------------- 1 + 2: DLLs ----------------
+		struct Refused  // an F4SE DLL that is not running
 		{
-			Share::VortexDlls                  vortex;
-			std::map<std::string, ModManagers::VortexModInfo> vortexMods;  // staging folder name (lower case) -> versions
-			std::vector<std::filesystem::path> modRoots;  // folders whose subfolders are installed mods
-			bool                               mo2{ false };
-			std::string                        vortexNote;  // what was found of Vortex's update info, for the report's "Mod manager" line
+			std::string               file;
+			std::filesystem::path     path;
+			std::vector<std::uint8_t> data;
+			std::string               f4se;  // its f4se.log line
+			const Rule*               rule{ nullptr };  // a 'dll ... refused' knowledge rule for it
 		};
 
-		std::string ReadText(const std::filesystem::path& a_file)
+		// The other installed mods that carry their own (different) copy of a not-running DLL, and what that copy would
+		// do on this game. This tells "the mod is old" apart from "another mod's older copy won the file conflict" with
+		// no Nexus page: the newer copy is right there on the player's disk.
+		std::string OtherCopies(const ModScan::Result& a_scan, const ModScan::DllCopies& a_found, std::string& a_advice)
 		{
-			const auto d = ReadFile(a_file, 128u << 20);  // vortex.deployment.json is several MB on a big modlist
-			return { d.begin(), d.end() };
-		}
-
-		const Managers& InstalledMods()
-		{
-			static const Managers m = [] {
-				Managers out;
-				std::error_code ec;
-				out.vortex = Share::ParseVortexManifest(ReadText(GameDir() / L"Data" / L"vortex.deployment.json"));
-				if (!out.vortex.staging.empty())
-					out.modRoots.emplace_back(Widen(out.vortex.staging));
-				// Vortex's update check (newestVersion) from its newest full state backup.
-				wchar_t    ad[512]{};
-				const auto an = REX::W32::GetEnvironmentVariableW(L"APPDATA", ad, 512);
-				if (!out.vortex.dlls.empty() && an && an < 512) {
-					const auto                      dir = std::filesystem::path(std::wstring(ad, an)) / L"Vortex" / L"temp" / L"state_backups_full";
-					std::filesystem::path           newest;
-					std::filesystem::file_time_type when{};
-					std::string                     names;
-					std::size_t                     count = 0;
-					for (const auto& f : std::filesystem::directory_iterator(dir, ec)) {
-						++count;
-						if (count <= 3)
-							names += (names.empty() ? "" : ", ") + Narrow(f.path().filename().wstring());
-						if (Lower(Narrow(f.path().extension().wstring())) != ".json")
-							continue;
-						const auto t = f.last_write_time(ec);
-						if (!ec && (newest.empty() || t > when))
-							newest = f.path(), when = t;
-					}
-					if (!newest.empty()) {
-						const auto d = ReadFile(newest, 256u << 20);
-						out.vortexMods = ModManagers::VortexStateMods(std::string_view(reinterpret_cast<const char*>(d.data()), d.size()));
-						std::size_t withNewest = 0;
-						for (const auto& [k, v] : out.vortexMods)
-							withNewest += !v.newest.empty();
-						out.vortexNote = std::format("Vortex update info: read {} ({} MB), {} mods in it, {} with a newest version recorded",
-							Narrow(newest.filename().wstring()), d.size() >> 20, out.vortexMods.size(), withNewest);
-					} else {
-						out.vortexNote = count ? "Vortex update info: no .json file in state_backups_full (found: " + names + ")"
-						                       : "Vortex update info: state_backups_full not found or empty";
-					}
-				}
-				if (const auto usvfs = REX::W32::GetModuleHandleW(L"usvfs_x64.dll")) {
-					out.mo2 = true;
-					wchar_t    buf[1024]{};
-					const auto n = REX::W32::GetModuleFileNameW(usvfs, buf, 1024);
-					std::vector<std::filesystem::path> inis;
-					if (n && n < 1024)
-						inis.push_back(std::filesystem::path(std::wstring(buf, n)).parent_path() / L"ModOrganizer.ini");
-					wchar_t    la[512]{};
-					const auto ln = REX::W32::GetEnvironmentVariableW(L"LOCALAPPDATA", la, 512);
-					if (ln && ln < 512)
-						for (const auto& inst : std::filesystem::directory_iterator(std::filesystem::path(std::wstring(la, ln)) / L"ModOrganizer", ec))
-							inis.push_back(inst.path() / L"ModOrganizer.ini");
-					for (const auto& ini : inis) {
-						if (!std::filesystem::is_regular_file(ini, ec))
-							continue;
-						const auto text = ReadText(ini);
-						if (const auto mods = ModManagers::Mo2ModsDir(text, Narrow(ini.parent_path().wstring())); !mods.empty())
-							out.modRoots.emplace_back(Widen(mods));
-					}
-				}
-				return out;
-			}();
-			return m;
-		}
-
-		// Which Vortex mod deployed a DLL.
-		std::string VortexSource(const std::string& a_dll)
-		{
-			for (const auto& [dll, src] : InstalledMods().vortex.dlls)
-				if (Lower(dll) == Lower(a_dll))
-					return src;
-			return {};
-		}
-
-		// Every installed mod (Vortex staging, MO2 mods) that carries its own copy of a not-running DLL, and what that
-		// copy would do on this game. This tells "the mod is old" apart from "another mod's older copy won the file
-		// conflict" with no Nexus page: the newer copy is right there on the player's disk.
-		std::string OtherCopies(const std::string& a_dll, const std::vector<std::uint8_t>& a_deployed, std::string& a_installedBy,
-			std::string& a_advice)
-		{
-			const auto& mm = InstalledMods();
-			std::error_code ec;
-			std::vector<std::string> wouldRun, wouldNot;
-			std::set<std::string>    seen;
-			for (const auto& root : mm.modRoots) {
-				for (const auto& mod : std::filesystem::directory_iterator(root, ec)) {
-					if (!mod.is_directory(ec))
-						continue;
-					const auto copy = mod.path() / L"F4SE" / L"Plugins" / std::filesystem::path(Widen(a_dll));
-					if (!std::filesystem::is_regular_file(copy, ec))
-						continue;
-					const auto name = Narrow(mod.path().filename().wstring());
-					if (!seen.insert(Lower(name)).second)
-						continue;
-					const auto data = ReadFile(copy, 96u << 20);
-					if (data == a_deployed) {
-						if (a_installedBy.empty())
-							a_installedBy = name;  // the copy the game sees
-						continue;
-					}
-					const auto pe = ParsePe(data);
-					if (!pe.ok)
-						continue;
-					auto label = "\"" + name + "\"";
-					if (const auto v = Formats::FileVersion(data); !v.empty())
-						label += " (file version " + v + ")";
-					if (Formats::FileVersion(data).empty()) {
-						std::string modVersion;
-						if (const auto it = mm.vortexMods.find(Lower(name)); it != mm.vortexMods.end())
-							modVersion = it->second.version;
-						else if (mm.mo2)
-							modVersion = ModManagers::Mo2Meta(ReadText(mod.path() / L"meta.ini")).version;
-						if (!modVersion.empty())
-							label += " (mod version " + modVersion + ")";
-					}
-					(Explain(pe, ReadVersionData(data, pe), {}).verdict.status == Loader::Status::yes ? wouldRun : wouldNot).push_back(label);
+			std::vector<std::string> wouldRun, mayRun, wouldNot;
+			for (const auto& c : a_found.others) {
+				const auto data = ReadFile(c.file, 32u << 20);
+				const auto pe = ParsePe(data);
+				if (!pe.ok)
+					continue;
+				auto label = "\"" + c.mod + "\"";
+				if (const auto v = Formats::FileVersion(data); !v.empty())
+					label += " (file version " + v + ")";
+				else if (const auto mv = a_scan.ModVersion(c.mod); !mv.empty())
+					label += " (mod version " + mv + ")";
+				if (!c.enabled)
+					label += " (off in your MO2 profile)";
+				// Old-Gen: a plugin with F4SEPlugin_Query decides for itself at run time, so its copy may well run.
+				switch (Explain(pe, ReadVersionData(data, pe), {}).verdict.status) {
+				case Loader::Status::yes: wouldRun.push_back(label); break;
+				case Loader::Status::maybe: mayRun.push_back(label); break;
+				default: wouldNot.push_back(label); break;
 				}
 			}
 			auto join = [](const std::vector<std::string>& v) {
@@ -516,43 +409,86 @@ namespace Vitals
 					s += (i ? ", " : "") + v[i];
 				return v.size() > 4 ? s + std::format(" and {} more", v.size() - 4) : s;
 			};
+			auto count = [](const std::vector<std::string>& v, const char* what) {
+				return std::format("{} other installed mod{} ha{} {}", v.size(), v.size() == 1 ? "" : "s", v.size() == 1 ? "s" : "ve", what);
+			};
+			const char* how = a_scan.manager == "MO2" ? "MO2: put that mod lower in the left pane, and turn it on" : "Vortex: Mods > Conflicts, or remove the older mod";
+			std::string out;
 			if (!wouldRun.empty()) {
-				a_advice = std::format("Another installed mod has a copy of this DLL that would run on your game: {}. Make that mod win the file conflict "
-				                       "(Vortex: Mods > Conflicts, or remove the older mod; MO2: drag it lower in the left pane).",
-					join(wouldRun));
-				return std::format(" {} other installed mod{} ha{} a working copy: {}.", wouldRun.size(), wouldRun.size() == 1 ? "" : "s",
-					wouldRun.size() == 1 ? "s" : "ve", join(wouldRun));
+				a_advice = std::format("Another installed mod has a copy of this DLL that would run on your game: {}. Make that mod win the file conflict ({}).",
+					join(wouldRun), how);
+				out += std::format(" {}: {}.", count(wouldRun, "a working copy"), join(wouldRun));
+			}
+			if (!mayRun.empty()) {
+				if (a_advice.empty())
+					a_advice = std::format("Another installed mod has a copy of this DLL that may run on your game (an Old-Gen plugin decides for itself when the game starts): {}. "
+					                       "Try making that mod win the file conflict ({}).",
+						join(mayRun), how);
+				out += std::format(" {} that may run (it decides for itself at start-up): {}.", count(mayRun, "a copy"), join(mayRun));
 			}
 			if (!wouldNot.empty())
-				return std::format(" {} other installed mod{} also ha{} this DLL ({}); none of those copies would run on your game either.", wouldNot.size(),
-					wouldNot.size() == 1 ? "" : "s", wouldNot.size() == 1 ? "s" : "ve", join(wouldNot));
-			return {};
+				out += std::format(" {} ({}); {} would not run on your game either.", count(wouldNot, "this DLL too"), join(wouldNot),
+					wouldNot.size() == 1 ? "that copy" : "those copies");
+			return out;
 		}
 
-		// The mod manager's own update check (Vortex state backup, or MO2 meta.ini newestVersion), for the mod that
-		// installed a DLL. Both come from the Nexus API, called by the mod manager; Vitals itself never goes online.
-		std::string NewerOnNexus(const std::string& a_mod, bool a_vortex)
+		void AddRefused(const Refused& a_r, const ModScan::Result& a_scan)
 		{
-			const auto& mm = InstalledMods();
-			if (a_mod.empty())
-				return {};
-			if (a_vortex) {
-				const auto it = mm.vortexMods.find(Lower(a_mod));
-				if (it != mm.vortexMods.end() && ModManagers::NewerVersion(it->second.newest, it->second.version))
-					return std::format(" Vortex says a newer version of this mod is on Nexus: {} (you have {}).", it->second.newest, it->second.version);
-				return {};
+			const auto& file = a_r.file;
+			const auto  pe = ParsePe(a_r.data);
+			if (!pe.ok) {
+				Add("warning", "plugin_dll", file, std::format("{} is in Data\\F4SE\\Plugins but is not running: it is {}.", file, pe.error),
+					"Remove it, or reinstall the mod that provides it.");
+				return;
 			}
-			if (!mm.mo2)
-				return {};
-			for (const auto& root : mm.modRoots) {
-				const auto meta = ModManagers::Mo2Meta(ReadText(root / std::filesystem::path(Widen(a_mod)) / L"meta.ini"));
-				if (ModManagers::NewerVersion(meta.newest, meta.version))
-					return std::format(" MO2 says a newer version of this mod is on Nexus: {} (you have {}).", meta.newest, meta.version);
+			auto        e = Explain(pe, ReadVersionData(a_r.data, pe), a_r.f4se);
+			std::string group;
+			const auto  why = e.verdict.why;
+			if (why == Loader::Why::no_version_data || why == Loader::Why::no_version_data_query_only) {
+				// Two checks agree or add detail: F4SE cannot load it (above), and when it was built.
+				const auto age = PluginAge(pe, a_r.path);
+				e.text += "." + age.text;
+				group = age.group;
+				if (e.text.back() == '.')
+					e.text.pop_back();
+				if (age.kind == Age::Kind::after)
+					e.advice = "Check the mod page for a Next-Gen/Anniversary file. If you already have the newest, the author has not added support for your game version yet.";
+				else if (age.kind == Age::Kind::before)
+					e.advice = "Look for a Next-Gen/Anniversary version of this mod, or a replacement. Until then its features (and mods that need it) will not work.";
 			}
-			return {};
+			const bool notPlugin = why == Loader::Why::not_plugin;
+			// What the player needs to tell "old mod" from "old copy": the DLL's own version number to compare with the
+			// mod page, which mod's copy is the one deployed, and other mods that carry the same DLL. Another mod
+			// bundling an older copy of a shared DLL, and winning the file conflict, looks exactly like an outdated mod.
+			std::string where;
+			if (const auto ver = Formats::FileVersion(a_r.data); !ver.empty())
+				where += " File version " + ver + ".";
+			std::string copyAdvice;
+			if (const auto* found = a_scan.For(file)) {
+				if (!found->installedBy.empty())
+					where += std::format(" Installed by the {} mod \"{}\".", a_scan.manager, found->installedBy);
+				where += a_scan.NewerOnNexus(found->installedBy);
+				where += OtherCopies(a_scan, *found, copyAdvice);
+			}
+			// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
+			// Library) are reported as problems by their own checks, or by a rule that says so.
+			std::string severity = notPlugin ? "info" : "warning";
+			if (a_r.rule) {
+				// The knowledge rule knows this mod (a replacement, the file to use instead): it stays the advice.
+				e.advice = a_r.rule->message;
+				if (a_r.rule->severity == "problem" || (a_r.rule->severity == "warning" && notPlugin))
+					severity = a_r.rule->severity;
+				if (!copyAdvice.empty())
+					e.advice += " Also: " + copyAdvice;
+			} else if (!copyAdvice.empty()) {
+				e.advice = copyAdvice;  // the fix is already installed; that beats the general advice
+			}
+			Add(severity, "plugin_dll", file,
+				std::format("{} is in Data\\F4SE\\Plugins but is not running: {}.{}{}", file, e.text, where, a_r.f4se.empty() ? ""s : " f4se.log: \"" + a_r.f4se + "\""),
+				e.advice, group)
+				.reason = Loader::Name(why);
 		}
 
-		// ---------------- 1 + 2: DLLs ----------------
 		void CheckDlls(const std::vector<Rule>& a_rules)
 		{
 			const auto      log = F4seLogLines();
@@ -560,9 +496,10 @@ namespace Vitals
 			std::size_t     total = 0, running = 0, refused = 0;
 			std::map<std::size_t, std::vector<std::string>> needs;  // index of a 'needs' rule -> DLLs that contain its text
 			const bool anyNeeds = std::ranges::any_of(a_rules, [](const Rule& r) { return r.kind == "needs"; });
+			std::vector<Refused> pending;
 
-			for (const auto& entry : std::filesystem::directory_iterator(PluginDir(), ec)) {
-				if (!entry.is_regular_file() || Lower(Narrow(entry.path().extension().wstring())) != ".dll")
+			for (const auto& entry : ListDir(PluginDir())) {
+				if (!entry.is_regular_file(ec) || Lower(Narrow(entry.path().extension().wstring())) != ".dll")
 					continue;
 				++total;
 				const auto file = Narrow(entry.path().filename().wstring());
@@ -583,7 +520,7 @@ namespace Vitals
 				// The file is read only when something needs its contents: a 'needs' rule, or a DLL that is not running.
 				if (!anyNeeds && inProcess)
 					continue;
-				const auto data = ReadFile(entry.path(), 96u << 20);
+				auto data = ReadFile(entry.path(), 96u << 20);
 				for (std::size_t i = 0; i < a_rules.size(); ++i)
 					if (a_rules[i].kind == "needs" && Contains(data, a_rules[i].match))
 						needs[i].push_back(file);
@@ -591,57 +528,30 @@ namespace Vitals
 					continue;
 
 				++refused;
-				const auto f4se = F4seSays(log, file);
-				const auto pe = ParsePe(data);
-				if (!pe.ok) {
-					Add("warning", "plugin_dll", file, std::format("{} is in Data\\F4SE\\Plugins but is not running: it is {}.", file, pe.error),
-						"Remove it, or reinstall the mod that provides it.");
-					continue;
-				}
-				auto        e = Explain(pe, ReadVersionData(data, pe), f4se);
-				std::string group;
-				const auto  why = e.verdict.why;
-				if (why == Loader::Why::no_version_data || why == Loader::Why::no_version_data_query_only) {
-					// Two checks agree or add detail: F4SE cannot load it (above), and when it was built.
-					const auto age = PluginAge(pe, entry.path());
-					e.text += "." + age.text;
-					group = age.group;
-					if (e.text.back() == '.')
-						e.text.pop_back();
-					if (age.kind == Age::Kind::after)
-						e.advice = "Check the mod page for a Next-Gen/Anniversary file. If you already have the newest, the author has not added support for your game version yet.";
-					else if (age.kind == Age::Kind::before)
-						e.advice = "Look for a Next-Gen/Anniversary version of this mod, or a replacement. Until then its features (and mods that need it) will not work.";
-				}
-				const bool notPlugin = why == Loader::Why::not_plugin;
-				// What the player needs to tell "old mod" from "old copy": the DLL's own version number to compare with
-				// the mod page, and (Vortex) which mod's copy is the one deployed. Another mod bundling an older copy of
-				// a shared DLL, and winning the file conflict, looks exactly like an outdated mod otherwise.
-				std::string where;
-				if (const auto ver = Formats::FileVersion(data); !ver.empty())
-					where += " File version " + ver + ".";
-				std::string installedBy = VortexSource(file), copyAdvice;
-				const bool  byVortex = !InstalledMods().vortex.staging.empty();
-				const auto  others = OtherCopies(file, data, installedBy, copyAdvice);
-				if (!installedBy.empty())
-					where += std::format(" Installed by the {} mod \"{}\".", byVortex ? "Vortex" : "MO2", installedBy);
-				where += NewerOnNexus(installedBy, byVortex);
-				where += others;
-				// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
-				// Library) are reported as problems by their own checks, or by a rule that says so.
-				std::string severity = notPlugin ? "info" : "warning";
-				if (refusedRule) {
-					e.advice = refusedRule->message;
-					if (refusedRule->severity == "problem" || (refusedRule->severity == "warning" && notPlugin))
-						severity = refusedRule->severity;
-				}
-				if (!copyAdvice.empty())
-					e.advice = copyAdvice;  // the fix is already installed; that beats any general advice
-				Add(severity, "plugin_dll", file,
-					std::format("{} is in Data\\F4SE\\Plugins but is not running: {}.{}{}", file, e.text, where, f4se.empty() ? ""s : " f4se.log: \"" + f4se + "\""),
-					e.advice, group)
-					.reason = Loader::Name(why);
+				auto& r = pending.emplace_back();
+				r.file = file;
+				r.path = entry.path();
+				r.rule = refusedRule;
+				r.f4se = F4seSays(log, file);
+				r.data = std::move(data);
 			}
+
+			// What the mod manager knows, for all the not-running DLLs in one pass (src/ModScan.cpp).
+			ModScan::Result scan;
+			if (!pending.empty()) {
+				std::vector<ModScan::Deployed> deployed;
+				for (const auto& r : pending)
+					deployed.push_back({ r.file, &r.data });
+				try {
+					scan = ModScan::Find(deployed);
+				} catch (const std::exception& ex) {
+					g_info.push_back(std::format("Mod manager: the look for other copies stopped early ({})", ex.what()));
+				}
+				for (const auto& n : scan.notes)
+					g_info.push_back(n);
+			}
+			for (const auto& r : pending)
+				AddRefused(r, scan);
 
 			for (const auto& [index, dlls] : needs) {
 				const auto& r = a_rules[index];
@@ -664,9 +574,6 @@ namespace Vitals
 				Add("problem", "data_file", "Address Library",
 					std::format("The Address Library file for this game version (Data\\F4SE\\Plugins\\{}) is there, but {}. F4SE plugins that use it will fail, and many of them close the game with an error.", al.file, al.problem),
 					"Download Address Library for F4SE Plugins (Nexus 47327) again, the file for your exact game version, and replace this file.").reason = al.state;
-			}
-			if (refused && !InstalledMods().vortexNote.empty()) {
-				g_info.push_back(InstalledMods().vortexNote);
 			}
 			g_info.push_back(std::format("F4SE plugins: {} DLLs in Data\\F4SE\\Plugins, {} running, {} not running", total, running, refused));
 		}
@@ -896,7 +803,9 @@ namespace Vitals
 					if (!cutoff || !std::filesystem::exists(path, ec))
 						continue;
 					const auto when = FileTimeToSys(std::filesystem::last_write_time(path, ec));
-					if (!ec && when && *when < *cutoff)
+					// A date before Fallout 4 came out (some archives store 1980-01-01) says nothing about the file.
+					constexpr auto kGameRelease = std::chrono::sys_days{ std::chrono::year{ 2015 } / 11 / 10 };
+					if (!ec && when && *when >= kGameRelease && *when < *cutoff)
 						Add(r.severity, "loose_file", r.match,
 							std::format("{} is a loose file dated {:%Y-%m-%d}, older than {}. {}", r.match, std::chrono::floor<std::chrono::days>(*when), r.extra, r.message));
 				} else if (r.kind == "file") {
@@ -1197,11 +1106,24 @@ namespace Vitals
 		Crumb("Vitals", "doctor");
 		std::scoped_lock l(g_lock);
 		const auto       started = std::chrono::steady_clock::now();
-		const auto rules = LoadRules();
-		CheckDlls(rules);
-		CheckLoadOrder();
-		CheckFileRules(rules);
-		CheckLooseFileSetup();
+		// Each check on its own: one that stops early (a file that cannot be read) leaves a line in the report, and the
+		// others, the report and the box still run, so an old report is never left in place as if it were this one.
+		auto step = [](const char* a_name, auto&& a_fn) {
+			try {
+				a_fn();
+			} catch (const std::exception& e) {
+				g_info.push_back(std::format("The {} check stopped early ({}); its results are missing from this report", a_name, e.what()));
+				Emit("error", Json().Str("step", std::string("doctor_") + a_name).Str("what", e.what()));
+			} catch (...) {
+				g_info.push_back(std::format("The {} check stopped early; its results are missing from this report", a_name));
+			}
+		};
+		std::vector<Rule> rules;
+		step("knowledge rules", [&] { rules = LoadRules(); });
+		step("F4SE plugin", [&] { CheckDlls(rules); });
+		step("load order", [] { CheckLoadOrder(); });
+		step("known file", [&] { CheckFileRules(rules); });
+		step("loose file", [] { CheckLooseFileSetup(); });
 		std::size_t problems = 0, warnings = 0;
 		for (const auto& i : g_issues) {
 			Json j;
@@ -1218,8 +1140,8 @@ namespace Vitals
 		Emit("doctor", Json().UNum("rules", rules.size()).UNum("problems", problems).UNum("warnings", warnings).UNum("issues", g_issues.size())
 			.UNum("ms", static_cast<std::uint64_t>(ms)));
 		Summary(std::format("Doctor: {} problem(s), {} warning(s), {} rules loaded. See Vitals-Report.txt", problems, warnings, rules.size()));
-		WriteReport();
-		MaybePopup();
+		Guarded("doctor_report", WriteReport);
+		Guarded("doctor_popup", MaybePopup);
 	}
 
 	void DoctorAddressNote(std::string_view a_line)

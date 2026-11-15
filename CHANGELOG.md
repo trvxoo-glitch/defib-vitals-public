@@ -6,13 +6,13 @@ All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a pers
 Not yet tested in game.
 - **Optional share pack, off unless you choose it.** The installer has a second page, *Help improve Vitals*, with
   **No thanks** selected. If you pick **Yes, help improve Vitals**, Vitals writes `Vitals-Share.zip` next to the
-  report after each session: its own reports and logs, F4SE's logs, your load order, 22 named game INI settings, a short
+  report each launch: its own reports and logs, F4SE's logs, your load order, 22 named game INI settings, a short
   PC summary (Windows, CPU, cores, RAM, GPU), up to 3 recent crash logs, a count-only summary of the Papyrus log, and
   (with Vortex) which mod installed each F4SE DLL. **Every file is scrubbed first:** your user name, PC name, emails, IP
   and MAC addresses, Steam ids, Windows account ids, keys and tokens, Mod Organizer profile names and private folder
   paths become placeholders, and text read from game memory in crash logs is removed. `scrub-report.txt` inside says
   how many of each. **Vitals still has no network code:** you decide whether to send the zip, by dragging it into a private channel in the Vitals Discord server (https://discord.gg/XghtBZUFNW) or attaching it to a GitHub issue. Turn it off by deleting
-  `Vitals\share-optin.txt` or setting `bSharePack=0`; the next launch deletes the pack. Full list and reasons:
+  `Vitals\share-optin.txt`, reinstalling with **No thanks**, or setting `bSharePack=0`; the next launch deletes the pack. Full list and reasons:
   `docs/PRIVACY_AND_SAFETY.md`.
 - **Fairer wording for plugins F4SE skips, and a wrong build date fixed.** A Nexus user reported a current mod flagged
   "built 2020, outdated". Reproducible builds (`/Brepro`) store a hash where the build date goes, and it can look like any
@@ -28,7 +28,7 @@ Not yet tested in game.
   - **Other installed copies.** It looks through every mod in your Vortex staging folder or MO2 mods folder for another
     copy of the same DLL and checks each one with the same F4SE rules. If one would run on your game, the report names
     that mod and tells you to make it win the file conflict. If none would, it says so, which means the mod itself has no
-    version for your game yet. Under MO2 it also says which mod's copy the game is using.
+    version for your game yet. It also says which mod's copy the game is using (Vortex and MO2).
   - **Your mod manager's update check.** Vortex and MO2 ask Nexus for each mod's newest version and save the answer on
     your PC (Vortex: its state backups in `%APPDATA%\Vortex\temp\state_backups_full`; MO2: each mod's meta.ini). When
     that answer is newer than the version you have, the report says so. Vitals itself still never goes online.
@@ -45,6 +45,34 @@ Not yet tested in game.
   the Vitals Discord server; `tools/share_inbox.py pull-discord` downloads them with a read-only bot, and `summary`
   counts not-running DLLs, crash locations and unbound Papyrus functions across installs (see `docs/DISCORD_INBOX.md`).
 - Next-Gen 1.10.984: a player confirmed Vitals works (36 of 43 plugins running, 772-plugin load order).
+- **Fixes from two outside code reviews of this build:**
+  - *Start-up:* each start-up step and each doctor check now runs on its own, so a file that cannot be read skips only
+    that step (the report says which) and never the report or the box. The `Vitals.jsonl` history copy no longer uses a
+    date conversion that can throw. Folder listings no longer throw part way.
+  - *Other installed copies:* one pass over the mods folder for all not-running DLLs, with a 2-second limit, instead of
+    a full rescan per DLL; identical copies are not read; a Vortex state backup over 64 MB is skipped instead of parsed.
+    Under MO2 only the instance that manages this game folder is used (not a Skyrim or Fallout London instance), and
+    "Installed by" is the mod that wins in the selected profile, not the first copy found. Copies in mods that are off
+    are marked. On Old-Gen a copy that decides for itself at start-up counts as "may run", not "would not run". A
+    knowledge rule's advice is no longer replaced by the copy advice; both are shown.
+  - *Update check:* "2.0-beta" is no longer called newer than "2.0" (and "1.0 fixed" is not called newer than "1.0").
+  - *Share pack privacy:* save names (`*.fos`, also after `<docs>` and in Fallout 4's own save names, which carry the
+    character name in hex) become `<save>`; labelled names (`Save name:`, `Player name =`, `"characterName":`) are
+    replaced; the Papyrus player name is caught in any sentence; crash-log quotes such as `"JohnSmith"` or
+    `"Nate_2077"` are removed (only file and script names, and EditorIDs, stay); 3-letter user names are removed as
+    words; crash-log file names in the zip and `manifest.json` go through the scrubber; Vortex folder names with no
+    spaces are no longer mistaken for keys. The privacy page now says what the scrubber cannot catch, and that the
+    install id links packs from the same install.
+  - *Share pack:* both Papyrus logs are summed up, so the main-menu write keeps the previous session's errors; the "N
+    older bytes left out" count is now the real count; the report says the zip is written after the report; when
+    `Vitals-Share.zip` is open in another program the new pack is saved as `Vitals-Share-new.zip` and the summary says
+    so; long INI values (`SResourceArchiveList`) are read in full or marked as cut; **No thanks** now installs the
+    marker with `share=0`, so a reinstall that picks No turns an earlier Yes off even when files are merged, and only
+    `share=1` turns the pack on. The package check enforces No as the pre-selected answer.
+  - *Smaller:* a `}` inside a Vortex mod name no longer breaks `vortex.deployment.json` reading; the f4se.log line must
+    name the whole DLL (`x.dll` no longer matches `max.dll`); a loose file dated before Fallout 4's release (an archive's
+    1980 date) no longer triggers an old-file rule, in game and in the preflight; the inbox tool needs the ticket
+    category id, sends the bot token only to Discord's API, and skips zips that unpack too large.
 - `Vitals.ini`: the `iPopupMode` comment describes 0.3.2's behaviour (the box shows every launch while it has
   something to list).
 

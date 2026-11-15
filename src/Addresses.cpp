@@ -179,7 +179,7 @@ namespace Vitals
 		{
 			std::vector<std::string> out;
 			std::error_code          ec;
-			for (const auto& e : std::filesystem::directory_iterator(PluginDir(), ec)) {
+			for (const auto& e : ListDir(PluginDir())) {
 				const auto name = Narrow(e.path().filename().wstring());
 				if (Lower(Narrow(e.path().extension().wstring())) == ".dll" && Lower(name) != "vitals.dll" &&
 					REX::W32::GetModuleHandleW(e.path().filename().c_str()))
@@ -234,7 +234,7 @@ namespace Vitals
 		std::size_t checked = 0, unresolved = 0, unreadable = 0, matched = 0, noBaseline = 0, hooked = 0, differs = 0, localUsed = 0, gameStubs = 0, patched = 0, partial = 0, malformed = 0;
 		std::map<std::string, std::size_t> hooksByModule;
 		std::error_code ec;
-		for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+		for (const auto& entry : ListDir(dir)) {
 			if (entry.path().extension() != L".txt")
 				continue;
 			const auto source = Narrow(entry.path().filename().wstring());

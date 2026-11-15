@@ -127,6 +127,14 @@ crash: 		File: "Fallout4.esm"
 want: 		File: "Fallout4.esm"
 crash: 		EditorID: "WorkshopNPCScript"
 want: 		EditorID: "WorkshopNPCScript"
+crash: 		Name: "JohnSmith"
+want: 		Name: <text>
+crash: 		Name: "RobinHale99"
+want: 		Name: <text>
+crash: 	RCX 0x0 (char*) "Nate_2077"
+want: 	RCX 0x0 (char*) <text>
+crash: 	RDX 0x0 (char*) "Scripts\WorkshopParentScript.pex"
+want: 	RDX 0x0 (char*) "Scripts\WorkshopParentScript.pex"
 crash: 		Flags: 0x00000000 "" FormID: 0x0001A4D7
 want: 		Flags: 0x00000000 "" FormID: 0x0001A4D7
 crash: 	[RSP+8] 0x7FF6 (char*) "C:\Users\Robin Hale\Documents\My Games\Fallout4\Saves\Save12.fos"
@@ -140,3 +148,41 @@ text: C:\Users\Robin Hale is the profile
 want: <path>\Users\<user>
 text: <docs>\My Games\Fallout4\F4SE\f4se.log by <user>
 want: <docs>\My Games\Fallout4\F4SE\f4se.log by <user>
+
+# save names (a saves folder after <docs>, a bare file name, Fallout 4's own pattern with the name in hex)
+text: <docs>\My Games\Fallout4\Saves\Piper.fos
+want: <docs>\My Games\Fallout4\Saves\<save>.fos
+text: D:\Backup\Fallout4\Saves\My Run 2.fos
+want: <path>\Saves\<save>.fos
+text: loading game Save3_0A1B2C3D_0_4E617465_Sanctuary_000123_20261115104218_10_1.fos done
+want: loading game <save>.fos done
+text: co-save "Piper.f4se" written
+want: co-save "<save>.f4se" written
+text: Fallout4.esm and Saves.ini stay
+want: Fallout4.esm and Saves.ini stay
+# labelled names
+text: Save name: Piper
+want: Save name: <save>
+text: Player name = Nora Hale
+want: Player name = <player>
+text: {"characterName":"Nate","level":10}
+want: {"characterName":"<player>","level":10}
+text: the player name is not set
+want: the player name is not set
+
+# short user names are whole words from 3 letters
+ctx reset
+ctx user=Bob
+ctx pc=AB
+text: Bob started the game; Bobcat.esp loaded
+want: <user> started the game; Bobcat.esp loaded
+text: AB is the PC name, too short to remove as a word
+want: AB is the PC name, too short to remove as a word
+
+# Vortex folder names with no spaces are not secrets
+text: <staging>\BakaFrameworkNG-43627-5-0-0-1727045731\F4SE\Plugins\BakaFramework.dll
+want: <staging>\BakaFrameworkNG-43627-5-0-0-1727045731\F4SE\Plugins\BakaFramework.dll
+text: ModExplorerMenuFallout4AE-82512-1-2-3-1730000000
+want: ModExplorerMenuFallout4AE-82512-1-2-3-1730000000
+text: apikey-like Zq8Xk2LmP0wR7tYb3NcV5hJ9sD4fG6aE1uI
+want: apikey-like <secret>

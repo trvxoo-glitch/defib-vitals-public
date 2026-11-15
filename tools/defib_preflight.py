@@ -485,7 +485,7 @@ def check_rules(game, rules, runtime, dll_issues):
                 continue  # a malformed date: skip the rule, as Vitals does in game
             if os.path.exists(p):
                 when = dt.date.fromtimestamp(os.path.getmtime(p))
-                if when < cutoff:
+                if dt.date(2015, 11, 10) <= when < cutoff:  # an archive's 1980 date says nothing, as in game
                     out.append(issue(r["severity"], "loose_file", r["match"], f"{r['match']} is dated {when}, older than {r['extra']}. {r['message']}"))
         elif k == "file":
             if exists(game, r["match"], runtime):

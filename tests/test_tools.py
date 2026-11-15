@@ -277,6 +277,9 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(make_package.build(dll, out), 0)
             marker = os.path.join(out, "20 Share - Yes", "F4SE", "Plugins", "Vitals", "share-optin.txt")
             self.assertIn("bSharePack=0", open(marker, encoding="utf-8").read())
+            self.assertTrue(make_package.share_on(marker))
+            no = os.path.join(out, "21 Share - No", "F4SE", "Plugins", "Vitals", "share-optin.txt")
+            self.assertFalse(make_package.share_on(no))  # picking No replaces an earlier Yes on reinstall
             # the opt-in is never pre-selected
             cfg = open(os.path.join(out, "fomod", "ModuleConfig.xml"), encoding="utf-8").read()
             self.assertIn("Yes, help improve Vitals", cfg)
@@ -292,6 +295,14 @@ class PackageTests(unittest.TestCase):
             self.assertNotEqual(bad, cfg)
             open(cfgp, "w", encoding="utf-8").write(bad)
             self.assertEqual(make_package.check(out), 1)
+            # No must stay the pre-selected default
+            bad_no = cfg.replace('<folder source="21 Share - No" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Recommended" />',
+                                 '<folder source="21 Share - No" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Optional" />')
+            self.assertNotEqual(bad_no, cfg)
+            open(cfgp, "w", encoding="utf-8").write(bad_no)
+            self.assertEqual(make_package.check(out), 1)
+            open(cfgp, "w", encoding="utf-8").write(cfg)
+            self.assertEqual(make_package.check(out), 0)
 
 
 class AgeNoteTests(unittest.TestCase):
@@ -483,6 +494,52 @@ class DiscordPullTests(unittest.TestCase):
         finally:
             share_inbox._discord = orig
 
+    def test_category_is_required(self):
+        import share_inbox
+        env = {k: os.environ.pop(k) for k in ("VITALS_DISCORD_CATEGORY",) if k in os.environ}
+        try:
+            with tempfile.TemporaryDirectory() as tmp, self.assertRaises(SystemExit):
+                share_inbox.pull_discord(tmp, "tok", "G", "")
+        finally:
+            os.environ.update(env)
+
+    def test_token_only_goes_to_the_api(self):
+        import share_inbox
+        import urllib.request
+        seen = []
+
+        class R:
+            def __init__(self, req):
+                seen.append((req.full_url, req.get_header("Authorization")))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b"[]"
+        orig = urllib.request.urlopen
+        urllib.request.urlopen = lambda req, timeout=0: R(req)
+        try:
+            share_inbox._discord("/guilds/G/channels", "tok")
+            share_inbox._discord("https://cdn.discordapp.com/attachments/1/2/Vitals-Share.zip", "tok", binary=True)
+        finally:
+            urllib.request.urlopen = orig
+        self.assertEqual(seen[0][1], "Bot tok")
+        self.assertIsNone(seen[1][1])
+
+    def test_zip_bomb_is_skipped(self):
+        import share_inbox
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, "bomb.zip")
+            with zipfile.ZipFile(p, "w", zipfile.ZIP_DEFLATED) as z:
+                z.writestr("manifest.json", '{"format":"vitals-share 1"}')
+                z.writestr("Vitals.jsonl", b"\0" * (20 << 20))
+            self.assertIsNone(share_inbox.read_pack(p))
+
 
 class PreflightEdgeTests(unittest.TestCase):
     def test_rule_runtime_tags(self):
@@ -500,6 +557,8 @@ class PreflightEdgeTests(unittest.TestCase):
             self.assertEqual(len(defib_preflight.check_rules(game, r, "1.11.240", [])), 1)
             self.assertEqual(len(defib_preflight.check_rules(game, r, "1.10.984", [])), 1)
             self.assertEqual(len(defib_preflight.check_rules(game, r, "1.10.163", [])), 0)
+            os.utime(swf, (315532800, 315532800))  # 1980-01-01, an archive with no real date
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.11.240", [])), 0)
 
     def test_bad_rule_date_is_skipped(self):
         import defib_preflight

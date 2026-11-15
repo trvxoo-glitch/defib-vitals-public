@@ -13,10 +13,12 @@
 //   7. key=value secrets (apikey, token, password...), Bearer tokens  -> <secret>
 //   8. long random-looking tokens (API keys)                          -> <secret>
 //   9. IPv4 (not version numbers), IPv6 and MAC addresses             -> <ip> <mac>
-//  10. the user name and PC name as whole words                       -> <user> <pc>
+//  10. the user name and PC name as whole words (3 letters or more)    -> <user> <pc>
 //  11. any other full path keeps only its last two names              -> <path>\Folder\File.dll
+//  12. save file names (*.fos, *.f4se), with or without a folder      -> <save>.fos   (runs right after step 3)
+//  13. "Save name: ...", "Player name: ..." and similar labelled values -> <save> <player>
 // Crash logs also go through CrashMemoryStrings first: quoted text read from game memory is replaced with <text>
-// unless it looks like a file, form or script name.
+// unless it looks like a file or script name (or follows "EditorID:").
 //
 // Mod and plugin file names stay: they are the point of the pack. SHA-256 hashes (64 hex digits) stay.
 
@@ -454,7 +456,29 @@ namespace Vitals::Scrub
 						return true;
 				return false;
 			};
-			if (LooksRandom(tok) && !fileName()) {
+			// a Vortex or Nexus archive/folder name with no spaces ("BakaFramework-43627-5-0-0-1727045731"): words and
+			// a Nexus mod id between dashes. Keys do not split into dash-separated parts like that.
+			auto modName = [&] {
+				std::size_t parts = 1, idParts = 0, run = 0;
+				bool        allDigits = true, letters = false;
+				for (std::size_t k = 0; k <= tok.size(); ++k) {
+					if (k == tok.size() || tok[k] == '-') {
+						if (run >= 3 && allDigits)
+							++idParts;
+						if (k < tok.size())
+							++parts;
+						run = 0;
+						allDigits = true;
+						continue;
+					}
+					++run;
+					allDigits = allDigits && IsDigit(tok[k]);
+					letters = letters || IsAlpha(tok[k]);
+				}
+				return parts >= 3 && idParts >= 1 && letters && tok.find("--") == std::string_view::npos &&
+				       tok.find_first_of("+/=") == std::string_view::npos;
+			};
+			if (LooksRandom(tok) && !fileName() && !modName()) {
 				out += "<secret>";
 				++a_n["secret"];
 			} else {
@@ -566,8 +590,8 @@ namespace Vitals::Scrub
 		return out;
 	}
 
-	// 10. The user name and PC name as whole words. Very short or common names are skipped, so a user called "Data"
-	// does not erase every "Data" folder.
+	// 10. The user name and PC name as whole words. Names of 1 or 2 letters and common words are skipped, so a user
+	// called "Data" does not erase every "Data" folder; those are still removed as a folder name (step 2).
 	inline bool CommonWord(std::string_view a_w)
 	{
 		static constexpr std::array<std::string_view, 20> kCommon{ "admin", "administrator", "user", "owner", "player", "gamer", "games",
@@ -679,26 +703,26 @@ namespace Vitals::Scrub
 	}
 
 	// Crash logs: quoted text read from game memory (Buffout 4 prints strings next to registers and stack slots, such
-	// as a character's Name: "..."). Kept only when it looks like a file, form or script name: no spaces, at most 160
-	// characters of [A-Za-z0-9_.:\/-], and either a '.', ':', '\', '/' or '_' in it, a digit, or a capital after
-	// the first letter (EditorIDs such as WorkshopNPCScript). Everything else becomes <text>.
-	inline bool KeepMemoryString(std::string_view a_s)
+	// as a character's Name: "..."). Kept only when it looks like a file or script name: no spaces, at most 160
+	// characters of [A-Za-z0-9_.:\/-], with a '.', ':', '\' or '/' in it. After "EditorID:" (a form's editor id, never
+	// a name the player typed) a capital after the first letter, a digit or a '_' is enough (WorkshopNPCScript).
+	// Everything else becomes <text>: a character called "JohnSmith" or "Nate_2077" must not stay.
+	inline bool KeepMemoryString(std::string_view a_s, bool a_editorId = false)
 	{
 		using namespace detail;
 		if (a_s.empty())
 			return true;
 		if (a_s.size() > 160)
 			return false;
-		bool marker = false, digit = false, innerCap = false;
+		bool marker = false, idLike = false;
 		for (std::size_t k = 0; k < a_s.size(); ++k) {
 			const char c = a_s[k];
 			if (!(IsAlnum(c) || c == '_' || c == '.' || c == ':' || c == '\\' || c == '/' || c == '-'))
 				return false;
-			marker = marker || c == '.' || c == ':' || c == '\\' || c == '/' || c == '_';
-			digit = digit || IsDigit(c);
-			innerCap = innerCap || (k > 0 && IsUpper(c));
+			marker = marker || c == '.' || c == ':' || c == '\\' || c == '/';
+			idLike = idLike || c == '_' || IsDigit(c) || (k > 0 && IsUpper(c));
 		}
-		return marker || digit || innerCap;
+		return marker || (a_editorId && idLike);
 	}
 
 	inline std::string CrashMemoryStrings(std::string_view a_in, Counts& a_n)
@@ -718,7 +742,14 @@ namespace Vitals::Scrub
 				continue;
 			}
 			const auto s = a_in.substr(i + 1, e - i - 1);
-			if (KeepMemoryString(s)) {
+			// "EditorID: " just before the quote
+			auto before = std::string_view(out);
+			if (const auto nl = before.rfind('\n'); nl != std::string_view::npos)
+				before.remove_prefix(nl + 1);
+			while (!before.empty() && before.back() == ' ')
+				before.remove_suffix(1);
+			const bool editorId = before.size() >= 9 && detail::EqI(before.substr(before.size() - 9), "EditorID:");
+			if (KeepMemoryString(s, editorId)) {
 				out.append(a_in.substr(i, e - i + 1));
 			} else {
 				out += "<text>";
@@ -729,23 +760,128 @@ namespace Vitals::Scrub
 		return out;
 	}
 
+	// 12. Save file names: the player's own names for their saves, or Fallout 4's own pattern, which carries the
+	// character name in hex (Save3_0A1B2C3D_0_4E617465_Sanctuary_...). The name runs back to a folder separator,
+	// quote, bracket, '=', ':' or the start of the line; with no separator, it starts after the last space.
+	inline std::string SaveNames(std::string_view a_in, Counts& a_n)
+	{
+		using namespace detail;
+		std::string out;
+		std::size_t i = 0, copied = 0;
+		auto        stop = [](char c) {
+            return c == '\\' || c == '/' || c == '"' || c == '\'' || c == '<' || c == '>' || c == '[' || c == ']' || c == '(' ||
+			       c == ')' || c == '=' || c == ':' || c == '\n' || c == '\r' || c == '\t' || c == '|' || c == ',' || c == ';';
+		};
+		while (i < a_in.size()) {
+			std::size_t ext = 0;
+			if (a_in[i] == '.' && i > 0) {
+				for (std::string_view x : { std::string_view(".fos"), std::string_view(".f4se") })
+					if (StartsI(a_in, i, x) && (i + x.size() == a_in.size() || !IsAlnum(a_in[i + x.size()])))
+						ext = x.size();
+			}
+			if (!ext) {
+				++i;
+				continue;
+			}
+			std::size_t start = i, firstSpace = std::string_view::npos;
+			while (start > copied && !stop(a_in[start - 1])) {
+				if (a_in[start - 1] == ' ' && firstSpace == std::string_view::npos)
+					firstSpace = start;
+				--start;
+			}
+			if (firstSpace != std::string_view::npos && !(start > 0 && IsSep(a_in[start - 1])))
+				start = firstSpace;  // "loading game Piper.fos": only the last word is the name
+			const auto name = a_in.substr(start, i - start);
+			if (!name.empty() && name != "<save>") {
+				out.append(a_in.substr(copied, start - copied));
+				out += "<save>";
+				++a_n["save"];
+				copied = i;
+			}
+			i += ext;
+		}
+		out.append(a_in.substr(copied));
+		return out;
+	}
+
+	// 13. Labelled values a log may print: "Save name: Piper", "player name = Nora", "\"characterName\":\"Nate\"". The
+	// label needs a ':' or '=' after it; the value runs to its closing quote, or to the end of the line.
+	inline std::string LabelledNames(std::string_view a_in, Counts& a_n)
+	{
+		using namespace detail;
+		static constexpr std::array<std::pair<std::string_view, std::string_view>, 12> kLabels{ {
+			{ "save name", "<save>" }, { "savename", "<save>" }, { "save file", "<save>" }, { "savefile", "<save>" },
+			{ "save game", "<save>" }, { "savegame", "<save>" }, { "last save", "<save>" },
+			{ "player name", "<player>" }, { "playername", "<player>" }, { "character name", "<player>" },
+			{ "charactername", "<player>" }, { "player_name", "<player>" },
+		} };
+		std::string out;
+		std::size_t i = 0;
+		while (i < a_in.size()) {
+			std::string_view token;
+			std::size_t      after = 0;
+			if (i == 0 || !IsAlnum(a_in[i - 1]))
+				for (const auto& [label, tok] : kLabels)
+					if (StartsI(a_in, i, label) && (i + label.size() == a_in.size() || !IsAlnum(a_in[i + label.size()]))) {
+						std::size_t k = i + label.size();
+						if (k < a_in.size() && a_in[k] == '"')
+							++k;
+						while (k < a_in.size() && a_in[k] == ' ')
+							++k;
+						if (k < a_in.size() && (a_in[k] == ':' || a_in[k] == '=')) {
+							token = tok;
+							after = k + 1;
+						}
+						break;
+					}
+			if (token.empty()) {
+				out += a_in[i++];
+				continue;
+			}
+			std::size_t v = after;
+			while (v < a_in.size() && a_in[v] == ' ')
+				++v;
+			std::size_t end = v;
+			if (v < a_in.size() && (a_in[v] == '"' || a_in[v] == '\'')) {
+				const auto close = a_in.find(a_in[v], v + 1);
+				const auto nl = a_in.find('\n', v + 1);
+				end = close != std::string_view::npos && (nl == std::string_view::npos || close < nl) ? close + 1 : v;
+			} else {
+				while (end < a_in.size() && a_in[end] != '\n' && a_in[end] != '\r')
+					++end;
+				while (end > v && a_in[end - 1] == ' ')
+					--end;
+			}
+			out.append(a_in.substr(i, v - i));
+			if (end > v) {
+				const bool quoted = a_in[v] == '"' || a_in[v] == '\'';
+				out += quoted ? std::string(1, a_in[v]) + std::string(token) + a_in[v] : std::string(token);
+				++a_n[token == "<save>" ? "save" : "player"];
+			}
+			i = end > v ? end : v;
+		}
+		return out;
+	}
+
 	// The whole scrub, in order.
 	inline std::string Text(std::string_view a_in, const Context& a_ctx, Counts& a_n)
 	{
 		auto s = Roots(a_in, a_ctx, a_n);
 		s = UserFolders(s, a_ctx, a_n);
 		s = Profiles(s, a_n);
+		s = SaveNames(s, a_n);  // before step 8: Fallout 4's own save names look like random tokens
 		s = SteamIds(s, a_n);
 		s = SidsAndGuids(s, a_n);
 		s = Emails(s, a_n);
 		s = KeyValueSecrets(s, a_n);
 		s = LongTokens(s, a_n);
 		s = Addresses(s, a_n);
-		s = Words(s, a_ctx.user, 4, "<user>", a_n, "user");
+		s = Words(s, a_ctx.user, 3, "<user>", a_n, "user");
 		s = Words(s, a_ctx.pc, 3, "<pc>", a_n, "pc");
 		if (!detail::EqI(a_ctx.domain, a_ctx.pc))
 			s = Words(s, a_ctx.domain, 3, "<pc>", a_n, "pc");
-		return Paths(s, a_n);
+		s = Paths(s, a_n);
+		return LabelledNames(s, a_n);
 	}
 
 	inline std::string CrashLog(std::string_view a_in, const Context& a_ctx, Counts& a_n)
@@ -756,7 +892,7 @@ namespace Vitals::Scrub
 	// scrub-report.txt: counts only, never the values.
 	inline std::string Report(const Counts& a_n)
 	{
-		static constexpr std::array<std::pair<std::string_view, std::string_view>, 14> kNames{ {
+		static constexpr std::array<std::pair<std::string_view, std::string_view>, 15> kNames{ {
 			{ "folder", "known folders (game, Documents, AppData, mod manager) shortened" },
 			{ "user", "Windows user names" },
 			{ "pc", "PC or domain names" },
@@ -770,7 +906,8 @@ namespace Vitals::Scrub
 			{ "mac", "network card (MAC) addresses" },
 			{ "path", "other folder paths shortened to their last two names" },
 			{ "text", "crash-log text read from game memory" },
-			{ "", "" },
+			{ "save", "save names" },
+			{ "player", "player character names" },
 		} };
 		std::string out = "Vitals scrubbed these before writing the share pack (counts only, the values are not kept):\n";
 		std::size_t total = 0;
