@@ -23,6 +23,17 @@ Not yet tested in game.
   file version (to compare with the mod page) and, with Vortex, which mod installed that copy. A newer mod whose DLL is
   overwritten by an older copy from another mod used to look exactly like an outdated mod. One TIP line at the end of
   the warnings says how to check file conflicts in Vortex or MO2 (it is not repeated on every plugin).
+- **Better answers without the mod page or a copy of the mod.** For a plugin that is not running, Vitals now uses what is
+  already on your PC:
+  - **Other installed copies.** It looks through every mod in your Vortex staging folder or MO2 mods folder for another
+    copy of the same DLL and checks each one with the same F4SE rules. If one would run on your game, the report names
+    that mod and tells you to make it win the file conflict. If none would, it says so, which means the mod itself has no
+    version for your game yet. Under MO2 it also says which mod's copy the game is using.
+  - **MO2's update check.** When MO2 already knows a newer version of the mod is on Nexus (its meta.ini), the report says so.
+  - **Compiler date check.** No DLL can be older than the linker that built it (Visual Studio 2017 to 2022 each have a
+    release date). A build date older than its own linker, or a file date reset by an archive, is no longer used as
+    proof of an Old-Gen mod. When the linker is newer than April 2024, the report says the DLL was built after the
+    Next-Gen update.
 - **New knowledge rule:** Independent Weapon Facing (its page says Old-Gen 1.10.163 only) is explained on Next-Gen/Anniversary.
 - **Copy report** button in the start-up box: copies the whole report to the clipboard and leaves the box open.
 - **Knowledge rules can name game versions** (`oldfile@NG,AE`). The old main-menu and font-file rules now apply only

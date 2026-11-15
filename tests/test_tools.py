@@ -331,6 +331,24 @@ class AgeNoteTests(unittest.TestCase):
             open(repro, "wb").write(bytes(d))
             self.assertIn("Its file is dated", defib_preflight.age_note(repro))
 
+    def test_linker_floor_beats_a_fake_old_date(self):
+        import calendar, datetime, defib_preflight
+        with tempfile.TemporaryDirectory() as tmp:
+            old = calendar.timegm(datetime.datetime(2020, 1, 1).timetuple())
+            p = self._dll(tmp, old)
+            d = bytearray(open(p, "rb").read())
+            d[0x98 + 2], d[0x98 + 3] = 14, 44  # linker 14.44: Visual Studio 2022 17.14, May 2025
+            open(p, "wb").write(bytes(d))
+            os.utime(p, (old, old))  # the file date is old too (an archive can do that)
+            note = defib_preflight.age_note(p)
+            self.assertIn("linker first released 2025-05-13", note)
+            self.assertIn("after the Next-Gen update", note)
+            self.assertNotIn("Old-Gen", note)
+            # an old linker with an old date: the date stands
+            d[0x98 + 3] = 20
+            open(p, "wb").write(bytes(d))
+            self.assertIn("Built (date inside the DLL) 2020-01-01", defib_preflight.age_note(p))
+
 
 class LooseSetupTests(unittest.TestCase):
     def test_loose_files_need_ini_settings(self):

@@ -89,6 +89,15 @@ and a message box there appears before a load-order crash at the main menu.
    before = made for Old-Gen, after = may still be maintained (and the advice points at the mod page). Issues get a `group`
    so the message box can list them together. A DLL that is not running is a `warning` (the mod does not work);
    `problem` is kept for what may crash the game.
+   The build date is checked against the linker version in the PE header (`Formats::LinkerFloor`: no DLL predates the
+   Visual Studio release that made it). A date earlier than that is ignored; a linker released after April 2024 alone
+   puts the DLL in the "after" group.
+   Then the mod manager's own data (`include/Vitals/ModManagers.h`): Vortex's `vortex.deployment.json` gives the
+   staging folder; under MO2 (`usvfs_x64.dll` loaded) the portable `ModOrganizer.ini` next to it, or the instances in
+   `%LOCALAPPDATA%\ModOrganizer`, give the mods folder. Every mod there with its own `F4SE\Plugins\<dll>` is read
+   and judged by `Loader::Check`; a copy that would run becomes the advice ("make that mod win the file conflict").
+   MO2's `meta.ini` `newestVersion` is reported when it is newer than `version`. All of this only reads files, and only
+   for DLLs that are not running.
 6. **Load order.** Base masters, then `Fallout4.ccc` entries present in Data, then active (`*`) lines of
    `%LOCALAPPDATA%\Fallout4\plugins.txt`. Under MO2 the virtual file system makes the profile's file appear
    there. Each plugin's TES4 header gives the master flag (0x1), the light flag (0x200) and the `MAST` list. Masters

@@ -1,5 +1,6 @@
 #include "Vitals.h"
 #include "Vitals/Formats.h"
+#include "Vitals/ModManagers.h"
 #include "Vitals/Rules.h"
 #include "Vitals/Share.h"
 
@@ -115,24 +116,37 @@ namespace Vitals
 			sys_days   day{};
 			const auto now = system_clock::now();
 			const auto built = sys_seconds{ seconds{ a_pe.timestamp } };
-			if (a_pe.timestamp && !a_pe.reproducible && built >= sys_days{ year{ 2010 } / January / 1 } && built <= now + hours{ 24 }) {
+			// The linker that made the DLL sets a date it cannot be older than (Formats::LinkerFloor). It catches a build
+			// date that is wrong (zeroed, a hash, a fake old date) and a file date that an archive reset.
+			const auto lf = Formats::LinkerFloor(a_pe.linkerMajor, a_pe.linkerMinor);
+			std::optional<sys_days> floorDay;
+			if (lf.y)
+				floorDay = sys_days{ year{ lf.y } / month{ lf.m } / std::chrono::day{ lf.d } };
+			bool stampOk = a_pe.timestamp && !a_pe.reproducible && built >= sys_days{ year{ 2010 } / January / 1 } && built <= now + hours{ 24 };
+			if (stampOk && floorDay && floor<days>(built) + days{ 31 } < *floorDay)
+				stampOk = false;  // dated before its own linker existed: the date is not real
+			if (stampOk) {
 				day = floor<days>(built);
 			} else {
 				std::error_code ec;
 				const auto      t = std::filesystem::last_write_time(a_path, ec);
-				if (ec) {
+				const auto      s = ec ? std::nullopt : FileTimeToSys(t);
+				if (s) {
+					day = floor<days>(*s);
+					weak = true;  // file date: archives and mod managers can change it
+				}
+				if (floorDay && (!s || day < *floorDay)) {
+					day = *floorDay;  // the linker floor is the better evidence
+					weak = false;
+					a.text = std::format(" It was made with a linker first released {:%Y-%m-%d}, so it was built after that", day);
+				}
+				if (!s && !floorDay) {
 					a.group = "unknown";
 					return a;
 				}
-				const auto s = FileTimeToSys(t);
-				if (!s) {
-					a.group = "unknown";
-					return a;
-				}
-				day = floor<days>(*s);
-				weak = true;  // file date: archives and mod managers can change it
 			}
 			const auto when = std::format("{:%Y-%m-%d}", day);
+			const bool fromLinker = !a.text.empty();
 			const char* what = weak ? "Its file is dated " : "Built (date inside the DLL) ";
 			if (day < nextGen) {
 				a.kind = Age::Kind::before;
@@ -142,8 +156,11 @@ namespace Vitals
 			} else {
 				a.kind = Age::Kind::after;
 				a.group = "post";
-				a.text = std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data.", what, when);
+				a.text = fromLinker ? a.text + ", after the Next-Gen update, so it may still be maintained and only lack the new version data."
+				                    : std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data.", what, when);
 			}
+			if (fromLinker && a.kind == Age::Kind::before)
+				a.kind = Age::Kind::unknown, a.group = "unknown", a.text.clear();  // never: a floor before NG says nothing
 			return a;
 		}
 
@@ -355,19 +372,136 @@ namespace Vitals
 			return std::chrono::sys_days{ ymd };
 		}
 
-		// Which Vortex mod deployed a DLL (Data\vortex.deployment.json), read once, only when a DLL is not running.
+		// ---------------- What the mod manager knows (no Nexus page, no copy of the mod needed) ----------------
+		// Vortex: Data\vortex.deployment.json names the mod each file came from and the staging folder that holds every
+		// installed mod. MO2: the game runs under usvfs_x64.dll, which lives in the MO2 folder; its ModOrganizer.ini
+		// (portable) or %LOCALAPPDATA%\ModOrganizer\<instance>\ModOrganizer.ini gives the mods folder. Read once, and only
+		// when a DLL is not running.
+		struct Managers
+		{
+			Share::VortexDlls                  vortex;
+			std::vector<std::filesystem::path> modRoots;  // folders whose subfolders are installed mods
+			bool                               mo2{ false };
+		};
+
+		std::string ReadText(const std::filesystem::path& a_file)
+		{
+			const auto d = ReadFile(a_file, 4u << 20);
+			return { d.begin(), d.end() };
+		}
+
+		const Managers& InstalledMods()
+		{
+			static const Managers m = [] {
+				Managers out;
+				std::error_code ec;
+				out.vortex = Share::ParseVortexManifest(ReadText(GameDir() / L"Data" / L"vortex.deployment.json"));
+				if (!out.vortex.staging.empty())
+					out.modRoots.emplace_back(Widen(out.vortex.staging));
+				if (const auto usvfs = REX::W32::GetModuleHandleW(L"usvfs_x64.dll")) {
+					out.mo2 = true;
+					wchar_t    buf[1024]{};
+					const auto n = REX::W32::GetModuleFileNameW(usvfs, buf, 1024);
+					std::vector<std::filesystem::path> inis;
+					if (n && n < 1024)
+						inis.push_back(std::filesystem::path(std::wstring(buf, n)).parent_path() / L"ModOrganizer.ini");
+					wchar_t    la[512]{};
+					const auto ln = REX::W32::GetEnvironmentVariableW(L"LOCALAPPDATA", la, 512);
+					if (ln && ln < 512)
+						for (const auto& inst : std::filesystem::directory_iterator(std::filesystem::path(std::wstring(la, ln)) / L"ModOrganizer", ec))
+							inis.push_back(inst.path() / L"ModOrganizer.ini");
+					for (const auto& ini : inis) {
+						if (!std::filesystem::is_regular_file(ini, ec))
+							continue;
+						const auto text = ReadText(ini);
+						if (const auto mods = ModManagers::Mo2ModsDir(text, Narrow(ini.parent_path().wstring())); !mods.empty())
+							out.modRoots.emplace_back(Widen(mods));
+					}
+				}
+				return out;
+			}();
+			return m;
+		}
+
+		// Which Vortex mod deployed a DLL.
 		std::string VortexSource(const std::string& a_dll)
 		{
-			static const Share::VortexDlls v = [] {
-				std::ifstream     in(GameDir() / L"Data" / L"vortex.deployment.json", std::ios::binary);
-				std::stringstream ss;
-				if (in)
-					ss << in.rdbuf();
-				return Share::ParseVortexManifest(ss.str());
-			}();
-			for (const auto& [dll, src] : v.dlls)
+			for (const auto& [dll, src] : InstalledMods().vortex.dlls)
 				if (Lower(dll) == Lower(a_dll))
 					return src;
+			return {};
+		}
+
+		// Every installed mod (Vortex staging, MO2 mods) that carries its own copy of a not-running DLL, and what that
+		// copy would do on this game. This tells "the mod is old" apart from "another mod's older copy won the file
+		// conflict" with no Nexus page: the newer copy is right there on the player's disk.
+		std::string OtherCopies(const std::string& a_dll, const std::vector<std::uint8_t>& a_deployed, std::string& a_installedBy,
+			std::string& a_advice)
+		{
+			const auto& mm = InstalledMods();
+			std::error_code ec;
+			std::vector<std::string> wouldRun, wouldNot;
+			std::set<std::string>    seen;
+			for (const auto& root : mm.modRoots) {
+				for (const auto& mod : std::filesystem::directory_iterator(root, ec)) {
+					if (!mod.is_directory(ec))
+						continue;
+					const auto copy = mod.path() / L"F4SE" / L"Plugins" / std::filesystem::path(Widen(a_dll));
+					if (!std::filesystem::is_regular_file(copy, ec))
+						continue;
+					const auto name = Narrow(mod.path().filename().wstring());
+					if (!seen.insert(Lower(name)).second)
+						continue;
+					const auto data = ReadFile(copy, 96u << 20);
+					if (data == a_deployed) {
+						if (a_installedBy.empty())
+							a_installedBy = name;  // the copy the game sees
+						continue;
+					}
+					const auto pe = ParsePe(data);
+					if (!pe.ok)
+						continue;
+					auto label = "\"" + name + "\"";
+					if (const auto v = Formats::FileVersion(data); !v.empty())
+						label += " (file version " + v + ")";
+					if (mm.mo2) {
+						const auto meta = ModManagers::Mo2Meta(ReadText(mod.path() / L"meta.ini"));
+						if (!meta.version.empty() && Formats::FileVersion(data).empty())
+							label += " (mod version " + meta.version + ")";
+					}
+					(Explain(pe, ReadVersionData(data, pe), {}).verdict.status == Loader::Status::yes ? wouldRun : wouldNot).push_back(label);
+				}
+			}
+			auto join = [](const std::vector<std::string>& v) {
+				std::string s;
+				for (std::size_t i = 0; i < v.size() && i < 4; ++i)
+					s += (i ? ", " : "") + v[i];
+				return v.size() > 4 ? s + std::format(" and {} more", v.size() - 4) : s;
+			};
+			if (!wouldRun.empty()) {
+				a_advice = std::format("Another installed mod has a copy of this DLL that would run on your game: {}. Make that mod win the file conflict "
+				                       "(Vortex: Mods > Conflicts, or remove the older mod; MO2: drag it lower in the left pane).",
+					join(wouldRun));
+				return std::format(" {} other installed mod{} ha{} a working copy: {}.", wouldRun.size(), wouldRun.size() == 1 ? "" : "s",
+					wouldRun.size() == 1 ? "s" : "ve", join(wouldRun));
+			}
+			if (!wouldNot.empty())
+				return std::format(" {} other installed mod{} also ha{} this DLL ({}); none of those copies would run on your game either.", wouldNot.size(),
+					wouldNot.size() == 1 ? "" : "s", wouldNot.size() == 1 ? "s" : "ve", join(wouldNot));
+			return {};
+		}
+
+		// MO2's own update check (meta.ini newestVersion), for the mod that installed a DLL.
+		std::string Mo2Newer(const std::string& a_mod)
+		{
+			const auto& mm = InstalledMods();
+			if (!mm.mo2 || a_mod.empty())
+				return {};
+			for (const auto& root : mm.modRoots) {
+				const auto meta = ModManagers::Mo2Meta(ReadText(root / std::filesystem::path(Widen(a_mod)) / L"meta.ini"));
+				if (ModManagers::NewerVersion(meta.newest, meta.version))
+					return std::format(" MO2 says a newer version of this mod is on Nexus: {} (you have {}).", meta.newest, meta.version);
+			}
 			return {};
 		}
 
@@ -439,8 +573,14 @@ namespace Vitals
 				std::string where;
 				if (const auto ver = Formats::FileVersion(data); !ver.empty())
 					where += " File version " + ver + ".";
-				if (const auto src = VortexSource(file); !src.empty())
-					where += " Installed by the Vortex mod \"" + src + "\".";
+				std::string installedBy = VortexSource(file), copyAdvice;
+				const bool  byVortex = !installedBy.empty();
+				const auto  others = OtherCopies(file, data, installedBy, copyAdvice);
+				if (!installedBy.empty())
+					where += std::format(" Installed by the {} mod \"{}\".", byVortex ? "Vortex" : "MO2", installedBy);
+				if (!byVortex)
+					where += Mo2Newer(installedBy);
+				where += others;
 				// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
 				// Library) are reported as problems by their own checks, or by a rule that says so.
 				std::string severity = notPlugin ? "info" : "warning";
@@ -449,6 +589,8 @@ namespace Vitals
 					if (refusedRule->severity == "problem" || (refusedRule->severity == "warning" && notPlugin))
 						severity = refusedRule->severity;
 				}
+				if (!copyAdvice.empty())
+					e.advice = copyAdvice;  // the fix is already installed; that beats any general advice
 				Add(severity, "plugin_dll", file,
 					std::format("{} is in Data\\F4SE\\Plugins but is not running: {}.{}{}", file, e.text, where, f4se.empty() ? ""s : " f4se.log: \"" + f4se + "\""),
 					e.advice, group)

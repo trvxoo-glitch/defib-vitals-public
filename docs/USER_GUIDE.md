@@ -73,6 +73,17 @@ Vitals reads the DLL's own F4SE data and applies the same rules F4SE uses, so th
 
 When `f4se.log` has a line about the DLL, it is quoted.
 
+Below the reason, Vitals adds what it can find on your own PC, with no internet and no mod page:
+
+- **File version**: the version number inside the DLL, to compare with the mod page.
+- **Installed by**: which Vortex or MO2 mod the game's copy came from. Under MO2, if MO2 has already seen a newer
+  version on Nexus, that is shown too.
+- **Other installed copies**: other mods in your Vortex staging folder or MO2 mods folder that carry the same DLL. If
+  one of them would run on your game, the advice tells you to let that mod win the file conflict. This is the usual
+  cause when an up-to-date mod shows up here: an older mod (or an old bundled copy) overwrites its DLL.
+- **Build date**: checked against the release date of the compiler that built the DLL, so a wrong date inside the DLL
+  or a file date reset by an archive does not make a new mod look old.
+
 ### "The Address Library file for this game version ... is missing"
 
 Almost every F4SE plugin needs [Address Library for F4SE Plugins](https://www.nexusmods.com/fallout4/mods/47327),

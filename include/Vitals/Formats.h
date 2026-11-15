@@ -42,7 +42,8 @@ namespace Vitals::Formats
 	{
 		bool                                 ok{ false };
 		std::uint32_t                        timestamp{ 0 };  // COFF TimeDateStamp: when the DLL was built (0/garbage in reproducible builds)
-		bool                                 reproducible{ false };  // a reproducible build (/Brepro): the timestamp is a hash, not a date
+		bool                                 reproducible{ false };
+		std::uint8_t                         linkerMajor{ 0 }, linkerMinor{ 0 };  // optional header: the MSVC linker that built it  // a reproducible build (/Brepro): the timestamp is a hash, not a date
 		std::string                          error;
 		std::map<std::string, std::uint32_t> exports;  // name -> RVA
 		std::vector<PeSection>               sections;
@@ -80,6 +81,37 @@ namespace Vitals::Formats
 		return {};
 	}
 
+	// The earliest day a DLL can have been built, from its linker version: each Visual Studio release ships a new
+	// linker (14.40 = VS 2022 17.10, May 2024). The build date inside a DLL can be wrong (reproducible builds put a hash
+	// there, some tools zero it), but no DLL can predate the linker that made it. Returns {year, month, day}, or zeros
+	// when the version says nothing useful (14.0 is also what clang's lld-link writes, so it is not used).
+	struct Ymd
+	{
+		int      y{ 0 };
+		unsigned m{ 0 }, d{ 0 };
+	};
+
+	inline Ymd LinkerFloor(std::uint8_t a_major, std::uint8_t a_minor)
+	{
+		if (a_major != 14 || a_minor < 10)
+			return {};
+		// minor -> first Visual Studio release with that linker (public release dates)
+		static constexpr struct { std::uint8_t minor; Ymd day; } kTable[] = {
+			{ 10, { 2017, 3, 7 } }, { 11, { 2017, 8, 14 } }, { 12, { 2017, 12, 4 } }, { 13, { 2018, 3, 5 } }, { 14, { 2018, 5, 7 } },
+			{ 15, { 2018, 8, 14 } }, { 16, { 2018, 11, 13 } }, { 20, { 2019, 4, 2 } }, { 21, { 2019, 5, 21 } }, { 22, { 2019, 7, 24 } },
+			{ 23, { 2019, 9, 23 } }, { 24, { 2019, 12, 3 } }, { 25, { 2020, 3, 16 } }, { 26, { 2020, 5, 19 } }, { 27, { 2020, 8, 5 } },
+			{ 28, { 2020, 11, 10 } }, { 29, { 2021, 5, 25 } }, { 30, { 2021, 11, 8 } }, { 31, { 2022, 2, 15 } }, { 32, { 2022, 5, 10 } },
+			{ 33, { 2022, 8, 9 } }, { 34, { 2022, 11, 8 } }, { 35, { 2023, 2, 21 } }, { 36, { 2023, 5, 16 } }, { 37, { 2023, 8, 8 } },
+			{ 38, { 2023, 11, 14 } }, { 39, { 2024, 2, 13 } }, { 40, { 2024, 5, 21 } }, { 41, { 2024, 8, 13 } }, { 42, { 2024, 11, 12 } },
+			{ 43, { 2025, 2, 11 } }, { 44, { 2025, 5, 13 } },
+		};
+		Ymd best{};
+		for (const auto& e : kTable)
+			if (e.minor <= a_minor)
+				best = e.day;
+		return best;
+	}
+
 	inline PeInfo ParsePe(Bytes d)
 	{
 		PeInfo        pe;
@@ -98,6 +130,8 @@ namespace Vitals::Formats
 			pe.error = "not a Windows DLL";
 			return pe;
 		}
+		Get(d, opt + 2, pe.linkerMajor);
+		Get(d, opt + 3, pe.linkerMinor);
 		if (magic != 0x20B) {
 			pe.error = "a 32-bit DLL (Fallout 4 is 64-bit, so it can never load)";
 			return pe;

@@ -2,6 +2,7 @@
 //   g++ -std=c++20 -I include tests/cpp/rules_test.cpp -o rules_test && ./rules_test tests/loader_cases.txt
 // CI runs it (build.yml, analyzer job) and tests/test_tools.py runs it when a compiler is installed.
 #include "Vitals/Formats.h"
+#include "Vitals/ModManagers.h"
 #include "Vitals/Rules.h"
 #include "Vitals/Scrub.h"
 #include "Vitals/Share.h"
@@ -545,6 +546,34 @@ static void RuntimeTagTests()
 	CHECK(!RuleRuntimes("dll@", "AE", kind));
 }
 
+static void ModManagerTests()
+{
+	namespace M = Vitals::ModManagers;
+	namespace F = Vitals::Formats;
+	// linker floor: 14.0 (lld-link) and other majors say nothing; 14.44 is VS 2022 17.14 (May 2025)
+	CHECK(F::LinkerFloor(14, 0).y == 0);
+	CHECK(F::LinkerFloor(9, 0).y == 0);
+	CHECK(F::LinkerFloor(14, 44).y == 2025 && F::LinkerFloor(14, 44).m == 5);
+	CHECK(F::LinkerFloor(14, 40).y == 2024 && F::LinkerFloor(14, 40).m == 5);  // after the April 2024 Next-Gen update
+	CHECK(F::LinkerFloor(14, 17).y == 2018);                                   // between table rows: the row below
+	CHECK(F::LinkerFloor(14, 99).y == 2025);                                   // newer than the table: its last row
+	// MO2 ini paths
+	CHECK(M::Mo2ModsDir("[Settings]\nbase_directory=@ByteArray(D:/MO2/FO4)\n", "C:\\inst") == "D:\\MO2\\FO4\\mods");
+	CHECK(M::Mo2ModsDir("[General]\ngameName=Fallout 4\n", "C:\\MO2") == "C:\\MO2\\mods");
+	CHECK(M::Mo2ModsDir("[Settings]\nmod_directory=%BASE_DIR%/stuff\n", "C:\\MO2") == "C:\\MO2\\stuff");
+	CHECK(M::Mo2ModsDir("", "").empty());
+	const auto meta = M::Mo2Meta("[General]\r\nmodid=43627\r\nversion=4.9.0\r\nnewestVersion=5.0.0\r\n[installedFiles]\r\n1\\modid=1\r\n");
+	CHECK(meta.version == "4.9.0" && meta.newest == "5.0.0" && meta.modId == "43627");
+	CHECK(M::NewerVersion("5.0.0", "4.9.0"));
+	CHECK(M::NewerVersion("1.10", "1.9"));
+	CHECK(!M::NewerVersion("1.9", "1.10"));
+	CHECK(!M::NewerVersion("5.0", "5.0.0"));
+	CHECK(!M::NewerVersion("5.0.0", "5.0"));
+	CHECK(M::NewerVersion("v2.1", "2.0"));
+	CHECK(!M::NewerVersion("", "1.0"));
+	CHECK(!M::NewerVersion("1.0", ""));
+}
+
 int main(int argc, char** argv)
 {
 	TextTests();
@@ -560,6 +589,7 @@ int main(int argc, char** argv)
 	ZipTests();
 	ShareTests();
 	RuntimeTagTests();
+	ModManagerTests();
 	const int loader = argc > 1 ? RunLoaderCases(argv[1]) : 0;
 	// tests/scrub_cases.txt sits next to tests/loader_cases.txt
 	int scrub = 0;
