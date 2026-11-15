@@ -531,6 +531,8 @@ namespace Vitals
 
 		// The mod manager's own update check (Vortex state backup, or MO2 meta.ini newestVersion), for the mod that
 		// installed a DLL. Both come from the Nexus API, called by the mod manager; Vitals itself never goes online.
+		std::vector<std::string> g_vortexSeen;
+
 		std::string NewerOnNexus(const std::string& a_mod, bool a_vortex)
 		{
 			const auto& mm = InstalledMods();
@@ -538,6 +540,9 @@ namespace Vitals
 				return {};
 			if (a_vortex) {
 				const auto it = mm.vortexMods.find(Lower(a_mod));
+				// shown in the report's "Vortex update info" line: how Vortex wrote each mod's versions
+				g_vortexSeen.push_back(it == mm.vortexMods.end() ? a_mod + ": not in Vortex's list"
+				                                                  : a_mod + ": have \"" + it->second.version + "\", newest \"" + it->second.newest + "\"");
 				if (it != mm.vortexMods.end() && ModManagers::NewerVersion(it->second.newest, it->second.version))
 					return std::format(" Vortex says a newer version of this mod is on Nexus: {} (you have {}).", it->second.newest, it->second.version);
 				return {};
@@ -665,8 +670,11 @@ namespace Vitals
 					std::format("The Address Library file for this game version (Data\\F4SE\\Plugins\\{}) is there, but {}. F4SE plugins that use it will fail, and many of them close the game with an error.", al.file, al.problem),
 					"Download Address Library for F4SE Plugins (Nexus 47327) again, the file for your exact game version, and replace this file.").reason = al.state;
 			}
-			if (refused && !InstalledMods().vortexNote.empty())
+			if (refused && !InstalledMods().vortexNote.empty()) {
 				g_info.push_back(InstalledMods().vortexNote);
+				for (const auto& line : g_vortexSeen)
+					g_info.push_back("  Vortex versions for " + line);
+			}
 			g_info.push_back(std::format("F4SE plugins: {} DLLs in Data\\F4SE\\Plugins, {} running, {} not running", total, running, refused));
 		}
 
