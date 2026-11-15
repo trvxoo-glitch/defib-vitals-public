@@ -15,8 +15,8 @@
 // the zip and where. The full list and the reasons are in docs/PRIVACY_AND_SAFETY.md.
 //
 // Written twice per launch, on a background thread so the game never waits: at PostPostLoad, right after the report
-// and the start-up box (so the previous session's logs and a crash log from it are packed even if this launch never
-// reaches the menu), and again at the main menu (with this session's address check). Both Papyrus logs are summed up,
+// is written and before the start-up box shows (so the previous session's logs and a crash log from it are packed
+// even if this launch never reaches the menu, or the player presses "Stop game"), and again at the main menu (with this session's address check). Both Papyrus logs are summed up,
 // so the second write does not lose the previous session's Papyrus errors.
 
 // kernel32 functions CommonLib's REX::W32 does not declare.
@@ -408,7 +408,7 @@ namespace Vitals
 			return {};
 		return "\nHOW TO HELP (you chose to help improve Vitals)\n"
 		       "  Vitals writes a log pack with your personal details removed, Vitals-Share.zip, a few seconds after this report\n"
-		       "  and again when the main menu is up. Vitals never sends it for you. To share it:\n"
+		       "  (while the start-up box is open) and again when the main menu is up. Vitals never sends it for you. To share it:\n"
 		       "    1. Join https://discord.gg/XghtBZUFNW and press the Send my pack button.\n"
 		       "    2. Drag Vitals-Share.zip (it is in this same folder) into the private channel that opens.\n"
 		       "  Only the Vitals maintainer can see that channel. Open the zip first if you want to see what is in it.\n"

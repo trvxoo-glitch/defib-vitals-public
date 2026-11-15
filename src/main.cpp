@@ -37,10 +37,13 @@ namespace
 			if (s.environment)
 				Vitals::Guarded("environment", Vitals::ReportEnvironment);
 			// Before the game reads its .esm/.esp files: a load order that is about to crash can still be reported.
+			// opt-in share pack: the previous session's files, even if this launch never reaches the menu. With the
+			// doctor on, RunDoctor starts it after the report is written and BEFORE the start-up box, because "Stop game"
+			// ends the process and the pack would never be written.
 			if (s.doctor)
 				Vitals::Guarded("doctor", Vitals::RunDoctor);
-			// opt-in share pack: the previous session's files, even if this launch never reaches the menu
-			Vitals::Guarded("share_pack", [] { Vitals::WriteSharePack("start"); });
+			else
+				Vitals::Guarded("share_pack", [] { Vitals::WriteSharePack("start"); });
 			break;
 		case M::kGameDataReady:
 			if (s.addressCheck)

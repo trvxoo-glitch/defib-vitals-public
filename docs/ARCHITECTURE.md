@@ -32,7 +32,7 @@ How the plugin is put together, so it can be changed safely years from now.
 | --- | --- | --- |
 | `F4SEPlugin_Query` (OG) / `F4SEPlugin_Version` (NG/AE) | Loader decides whether to load Vitals | `res/vitals/commonlibf4-plugin.cpp.in`, `main.cpp` |
 | `F4SEPlugin_Load` | `LoadSettings`, `OpenReport` (rotate history), `InitBreadcrumbs`, `start` record, register message listener | `main.cpp`, `Common.cpp`, `Breadcrumbs.cpp` |
-| `kPostPostLoad` (all F4SE plugins loaded, before the game reads plugins) | `ReportEnvironment`, then `RunDoctor` (report + message box), then `WriteSharePack("start")` on a background thread when opted in | `Environment.cpp`, `Doctor.cpp`, `Share.cpp` |
+| `kPostPostLoad` (all F4SE plugins loaded, before the game reads plugins) | `ReportEnvironment`, then `RunDoctor` (report, then `WriteSharePack("start")` on a background thread when opted in, then the message box: "Stop game" ends the process, so the pack is started before the box) | `Environment.cpp`, `Doctor.cpp`, `Share.cpp` |
 | `kGameDataReady` (data loaded, main menu next) | `CheckAddresses` (adds the address section to the report; skipped with `address_check_unavailable` when the Address Library is not usable), `WriteSharePack("main_menu")` when opted in, `RunLayoutProbes`; `ListPapyrusNatives` one task tick later, after every plugin's own `kGameDataReady` handler | `Addresses.cpp`, `Natives.cpp`, `Probes.cpp` |
 | `kPostLoadGame` / `kNewGame` | pointer re-check, probes, `session` record | `Addresses.cpp`, `Probes.cpp` |
 | every message | `MarkPhase` (`phase` record, `status.json`), optional test-rig exit | `Status.cpp` |

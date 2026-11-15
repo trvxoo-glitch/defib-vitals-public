@@ -73,6 +73,8 @@ Not yet tested in game.
     name the whole DLL (`x.dll` no longer matches `max.dll`); a loose file dated before Fallout 4's release (an archive's
     1980 date) no longer triggers an old-file rule, in game and in the preflight; the inbox tool needs the ticket
     category id, sends the bot token only to Discord's API, and skips zips that unpack too large.
+- **Share pack on "Stop game":** the start-up pack used to be written after the box closed, so pressing Stop game
+  (which ends the process) meant no pack at all. It is now started right after the report and before the box.
 - **Fixes from a third review:** running F4SE DLLs are no longer read from disk at start-up (a knowledge rule that
   looks for text inside DLLs now searches the copy already in memory, and only while the file it is about is
   missing); the 2-second limit now covers every step about other copies (comparing copies, Vortex's state backup,

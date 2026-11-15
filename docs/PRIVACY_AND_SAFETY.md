@@ -28,7 +28,7 @@ Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vi
 
 ## The share pack (opt-in, off by default)
 If you pick **Yes, help improve Vitals** in the installer (or set `bSharePack=1`), Vitals writes
-`Vitals-Share.zip` next to the report, a few seconds after the start-up report and again when the main menu is up
+`Vitals-Share.zip` next to the report, a few seconds after the start-up report (while the box is open) and again when the main menu is up
 (if the zip is open in another program at that moment, that launch's pack is `Vitals-Share-new.zip` instead). It is
 for you to send if you want to help find broken mods; Vitals never sends it.
 

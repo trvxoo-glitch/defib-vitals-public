@@ -79,9 +79,12 @@ namespace Vitals
 				!SafeRead(base + lfanew + 24 + 56, &sizeOfImage, 4) || sizeOfImage > (512u << 20))
 				return false;
 			auto eq = [](std::uint8_t a, char b) { return std::tolower(a) == std::tolower(static_cast<unsigned char>(b)); };
-			constexpr std::size_t kChunk = 1u << 20;
-			for (std::size_t at = 0; at < sizeOfImage; at += kChunk) {
-				const auto len = std::min<std::size_t>(kChunk + a_needle.size() - 1, sizeOfImage - at);
+			// page by page: one unreadable page (a discarded section) must not hide the readable ones around it
+			constexpr std::size_t kPage = 4096;
+			for (std::size_t at = 0; at < sizeOfImage; at += kPage) {
+				auto len = std::min<std::size_t>(kPage + a_needle.size() - 1, sizeOfImage - at);  // overlap: a match may cross a page
+				if (!IsReadable(base + at, len))
+					len = std::min<std::size_t>(kPage, sizeOfImage - at);
 				if (!IsReadable(base + at, len))
 					continue;
 				if (std::search(base + at, base + at + len, a_needle.begin(), a_needle.end(), eq) != base + at + len)
@@ -1206,6 +1209,8 @@ namespace Vitals
 			.UNum("ms", static_cast<std::uint64_t>(ms)));
 		Summary(std::format("Doctor: {} problem(s), {} warning(s), {} rules loaded. See Vitals-Report.txt", problems, warnings, rules.size()));
 		Guarded("doctor_report", WriteReport);
+		// The share pack is written on its own thread while the box is open: pressing "Stop game" ends the process.
+		Guarded("share_pack", [] { WriteSharePack("start"); });
 		Guarded("doctor_popup", MaybePopup);
 	}
 

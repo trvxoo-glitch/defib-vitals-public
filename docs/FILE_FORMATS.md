@@ -151,7 +151,7 @@ On when `Data\F4SE\Plugins\Vitals\share-optin.txt` has a `share=1` line (the ins
 thanks** installs the same file with `share=0`, and a file with neither, such as an early 0.4.0 test build's, is off)
 unless `Vitals.ini` sets `bSharePack=0`; `bSharePack=1` turns it on without the file. Off: the next launch deletes
 `Vitals-Share.zip`, `Vitals-Share-new.zip` and `share-id.txt`. Written on a background thread at PostPostLoad (after
-the report and the start-up box) and again at the main menu (`Vitals-Share.zip.tmp`, then renamed over the old one;
+the report, before the start-up box shows) and again at the main menu (`Vitals-Share.zip.tmp`, then renamed over the old one;
 when the old one is open in another program, renamed to `Vitals-Share-new.zip` and a line in `Vitals-summary.txt`
 says so).
 
