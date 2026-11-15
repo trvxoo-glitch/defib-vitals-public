@@ -715,6 +715,7 @@ namespace Vitals
 					out << "  - " << Redact(i.message) << "\n";
 					if (!i.advice.empty())
 						out << "    What to do: " << Redact(i.advice) << "\n";
+					out << "\n";  // a blank line between entries
 				}
 			}
 			if (!g_addrNotes.empty()) {
@@ -928,10 +929,10 @@ namespace Vitals
 			if (!dllShown.empty()) {
 				// Plugins F4SE skips for lack of version data are listed together, split by when they were built.
 				struct Grp { const char* name; const char* title; std::string list; std::size_t n{ 0 }; };
-				std::array<Grp, 4> groups{ { { "pre", "made before the April 2024 Next-Gen update (outdated)", {}, 0 },
-					{ "post", "built after that update (the mod page may have a newer file)", {}, 0 },
-					{ "unknown", "build date unknown", {}, 0 },
-					{ "", "other reasons (see the report)", {}, 0 } } };
+				std::array<Grp, 4> groups{ { { "pre", "Made before the April 2024 Next-Gen update (outdated)", {}, 0 },
+					{ "post", "Built after that update (the mod page may have a newer file)", {}, 0 },
+					{ "unknown", "Build date unknown", {}, 0 },
+					{ "", "Other reasons (see the report)", {}, 0 } } };
 				for (const auto* p : dllShown)
 					for (auto& g : groups)
 						if (p->group == g.name || !*g.name) {
@@ -939,10 +940,10 @@ namespace Vitals
 							++g.n;
 							break;
 						}
-				text += std::format("MODS NOT RUNNING ({} F4SE plugin(s) are installed but F4SE did not load them, so their features will not work):\n", dllShown.size());
+				text += std::format("MODS NOT RUNNING: {} F4SE plugin(s) are installed but F4SE did not load them, so their features will not work.\n", dllShown.size());
 				for (const auto& g : groups)
 					if (g.n)
-						text += std::format("- {} {}: {}\n", g.n, g.title, g.list.size() > 300 ? Rules::Utf8Prefix(g.list, 300) + ", ..." : g.list);
+						text += std::format("\n{} ({}):\n    {}\n", g.title, g.n, g.list.size() > 300 ? Rules::Utf8Prefix(g.list, 300) + ", ..." : g.list);
 				text += "\n";
 			}
 			text += "Full report with what to do: " + ReportPathText() +
