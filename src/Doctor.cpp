@@ -1,6 +1,11 @@
 #include "Vitals.h"
 #include "Vitals/Formats.h"
+#include "Vitals/ModManagers.h"
 #include "Vitals/Rules.h"
+#include "Vitals/Share.h"
+#include "ModScan.h"
+
+#include <sstream>
 
 // Plugin doctor (bDoctor=1, on by default). Runs at kPostPostLoad: after every F4SE plugin had its chance to
 // load, and BEFORE the game reads its plugins (.esm/.esp/.esl), so it can warn about a load order that is
@@ -39,6 +44,7 @@ namespace Vitals
 		};
 
 		void*                    g_hook{ nullptr };  // the CBT hook used to relabel the message box buttons
+		void*                    g_box{ nullptr };   // the message box window while it is open (clipboard owner)
 		std::mutex               g_lock;
 		std::vector<Issue>       g_issues;
 		std::vector<std::string> g_info;       // short facts for the report header
@@ -53,19 +59,7 @@ namespace Vitals
 		using Rules::Trim;
 		namespace Loader = Rules::Loader;
 
-		std::vector<std::uint8_t> ReadFile(const std::filesystem::path& a_file, std::size_t a_max)
-		{
-			std::vector<std::uint8_t> data;
-			std::ifstream             in(a_file, std::ios::binary);
-			if (!in)
-				return data;
-			std::error_code ec;
-			const auto      size = std::filesystem::file_size(a_file, ec);
-			data.resize(static_cast<std::size_t>(std::min<std::uintmax_t>(ec ? 0 : size, a_max)));
-			in.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size()));
-			data.resize(static_cast<std::size_t>(in.gcount()));
-			return data;
-		}
+		std::vector<std::uint8_t> ReadFile(const std::filesystem::path& a_file, std::size_t a_max) { return ReadBytes(a_file, a_max); }
 
 		bool Contains(const std::vector<std::uint8_t>& a_hay, std::string_view a_needle)
 		{
@@ -73,6 +67,30 @@ namespace Vitals
 				return false;
 			return std::search(a_hay.begin(), a_hay.end(), a_needle.begin(), a_needle.end(),
 			           [](std::uint8_t a, char b) { return std::tolower(a) == std::tolower(static_cast<unsigned char>(b)); }) != a_hay.end();
+		}
+
+		// The same search in a DLL that is loaded: its image in memory, read only where the pages are readable.
+		bool ImageContains(const void* a_module, std::string_view a_needle)
+		{
+			const auto base = reinterpret_cast<const std::uint8_t*>(a_module);
+			std::int32_t  lfanew = 0;
+			std::uint32_t sizeOfImage = 0;
+			if (!base || a_needle.empty() || !SafeRead(base + 0x3C, &lfanew, 4) || lfanew <= 0 || lfanew > 0x1000 ||
+				!SafeRead(base + lfanew + 24 + 56, &sizeOfImage, 4) || sizeOfImage > (512u << 20))
+				return false;
+			auto eq = [](std::uint8_t a, char b) { return std::tolower(a) == std::tolower(static_cast<unsigned char>(b)); };
+			// page by page: one unreadable page (a discarded section) must not hide the readable ones around it
+			constexpr std::size_t kPage = 4096;
+			for (std::size_t at = 0; at < sizeOfImage; at += kPage) {
+				auto len = std::min<std::size_t>(kPage + a_needle.size() - 1, sizeOfImage - at);  // overlap: a match may cross a page
+				if (!IsReadable(base + at, len))
+					len = std::min<std::size_t>(kPage, sizeOfImage - at);
+				if (!IsReadable(base + at, len))
+					continue;
+				if (std::search(base + at, base + at + len, a_needle.begin(), a_needle.end(), eq) != base + at + len)
+					return true;
+			}
+			return false;
 		}
 
 		std::string VersionText(std::uint32_t a_packed)
@@ -111,35 +129,51 @@ namespace Vitals
 			sys_days   day{};
 			const auto now = system_clock::now();
 			const auto built = sys_seconds{ seconds{ a_pe.timestamp } };
-			if (a_pe.timestamp && built >= sys_days{ year{ 2010 } / January / 1 } && built <= now + hours{ 24 }) {
+			// The linker that made the DLL sets a date it cannot be older than (Formats::LinkerFloor). It catches a build
+			// date that is wrong (zeroed, a hash, a fake old date) and a file date that an archive reset.
+			const auto lf = Formats::LinkerFloor(a_pe.linkerMajor, a_pe.linkerMinor);
+			std::optional<sys_days> floorDay;
+			if (lf.y)
+				floorDay = sys_days{ year{ lf.y } / month{ lf.m } / std::chrono::day{ lf.d } };
+			bool stampOk = a_pe.timestamp && !a_pe.reproducible && built >= sys_days{ year{ 2010 } / January / 1 } && built <= now + hours{ 24 };
+			if (stampOk && floorDay && floor<days>(built) + days{ 31 } < *floorDay)
+				stampOk = false;  // dated before its own linker existed: the date is not real
+			if (stampOk) {
 				day = floor<days>(built);
 			} else {
 				std::error_code ec;
 				const auto      t = std::filesystem::last_write_time(a_path, ec);
-				if (ec) {
+				const auto      s = ec ? std::nullopt : FileTimeToSys(t);
+				if (s) {
+					day = floor<days>(*s);
+					weak = true;  // file date: archives and mod managers can change it
+				}
+				if (floorDay && (!s || day < *floorDay)) {
+					day = *floorDay;  // the linker floor is the better evidence
+					weak = false;
+					a.text = std::format(" It was made with a linker first released {:%Y-%m-%d}, so it was built after that", day);
+				}
+				if (!s && !floorDay) {
 					a.group = "unknown";
 					return a;
 				}
-				const auto s = FileTimeToSys(t);
-				if (!s) {
-					a.group = "unknown";
-					return a;
-				}
-				day = floor<days>(*s);
-				weak = true;  // file date: archives and mod managers can change it
 			}
 			const auto when = std::format("{:%Y-%m-%d}", day);
-			const char* what = weak ? "Its file is dated " : "Built ";
+			const bool fromLinker = !a.text.empty();
+			const char* what = weak ? "Its file is dated " : "Built (date inside the DLL) ";
 			if (day < nextGen) {
 				a.kind = Age::Kind::before;
 				a.group = "pre";
-				a.text = std::format(" {}{}, before the April 2024 Next-Gen update, so {} made for Old-Gen 1.10.163 or earlier and is outdated.", what, when,
-					weak ? "it was probably" : "it was");
+				a.text = std::format(" {}{}, before the April 2024 Next-Gen update, so {} made for Old-Gen 1.10.163 or earlier.", what, when,
+					weak ? "it was probably" : "it was most likely");
 			} else {
 				a.kind = Age::Kind::after;
 				a.group = "post";
-				a.text = std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data: check the mod page for a newer file.", what, when);
+				a.text = fromLinker ? a.text + ", after the Next-Gen update, so it may still be maintained and only lack the new version data."
+				                    : std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data.", what, when);
 			}
+			if (fromLinker && a.kind == Age::Kind::before)
+				a.kind = Age::Kind::unknown, a.group = "unknown", a.text.clear();  // never: a floor before NG says nothing
 			return a;
 		}
 
@@ -254,7 +288,14 @@ namespace Vitals
 			std::string best;
 			for (const auto& l : a_log) {
 				const auto low = Lower(l);
-				if (low.find(key) == std::string::npos)
+				// The whole file name: "x.dll" must not match a line about "max.dll".
+				bool named = false;
+				for (auto at = low.find(key); at != std::string::npos && !named; at = low.find(key, at + 1)) {
+					const auto before = at ? static_cast<unsigned char>(low[at - 1]) : ' ';
+					const auto after = at + key.size() < low.size() ? static_cast<unsigned char>(low[at + key.size()]) : ' ';
+					named = !std::isalnum(before) && before != '_' && before != '-' && before != '.' && !std::isalnum(after);
+				}
+				if (!named)
 					continue;
 				if (low.find("disabled") != std::string::npos || low.find("incompatible") != std::string::npos ||
 					low.find("couldn't") != std::string::npos || low.find("could not") != std::string::npos ||
@@ -278,7 +319,7 @@ namespace Vitals
 			std::vector<Rule>                   rules;
 			std::error_code                    ec;
 			std::vector<std::filesystem::path> files;
-			for (const auto& e : std::filesystem::directory_iterator(PluginDir() / L"Vitals" / L"knowledge", ec))
+			for (const auto& e : ListDir(PluginDir() / L"Vitals" / L"knowledge"))
 				if (e.path().extension() == L".txt")
 					files.push_back(e.path());
 			std::ranges::sort(files);
@@ -296,6 +337,10 @@ namespace Vitals
 					// a message may itself contain '|': join the rest
 					for (std::size_t i = 5; i < f.size(); ++i)
 						f[4] += " | " + f[i];
+					// "oldfile@NG,AE": the rule applies only to those runtimes (Rules::RuleRuntimes)
+					std::string kind;
+					if (!Rules::RuleRuntimes(f[0], RuntimeName(), kind))
+						continue;
 					if (!seen.insert(Lower(f[0]) + "|" + Lower(f[1]) + "|" + Lower(f[2])).second)
 						continue;
 					// Only three severities exist. Anything else would be counted nowhere and never shown, which would
@@ -307,7 +352,7 @@ namespace Vitals
 						Summary(std::format("Knowledge rule with unknown severity \"{}\" in {} (used as warning): {}", f[3], Narrow(path.filename().wstring()), line));
 						sev = "warning";
 					}
-					rules.push_back({ Lower(f[0]), f[1], f[2], sev, f[4], Narrow(path.filename().wstring()) });
+					rules.push_back({ kind, f[1], f[2], sev, f[4], Narrow(path.filename().wstring()) });
 				}
 			}
 			return rules;
@@ -348,16 +393,178 @@ namespace Vitals
 		}
 
 		// ---------------- 1 + 2: DLLs ----------------
+		struct Refused  // an F4SE DLL that is not running
+		{
+			std::string               file;
+			std::filesystem::path     path;
+			std::vector<std::uint8_t> data;
+			std::string               f4se;  // its f4se.log line
+			const Rule*               rule{ nullptr };  // a 'dll ... refused' knowledge rule for it
+		};
+
+		// The other installed mods that carry their own (different) copy of a not-running DLL, and what that copy would
+		// do on this game. This tells "the mod is old" apart from "another mod's older copy won the file conflict" with
+		// no Nexus page: the newer copy is right there on the player's disk.
+		std::string OtherCopies(const ModScan::Result& a_scan, const ModScan::DllCopies& a_found, std::string& a_advice)
+		{
+			// What one copy would do on this game. Plugin DLLs are a few MB; 16 MB covers the headers, the export
+			// directory and the version resource of anything real, and keeps a huge file from stalling the start-up box.
+			auto judge = [](const std::filesystem::path& a_file, std::string* a_version) -> std::optional<Loader::Status> {
+				const auto data = ReadFile(a_file, 16u << 20);
+				const auto pe = ParsePe(data);
+				if (!pe.ok)
+					return std::nullopt;
+				if (a_version)
+					*a_version = Formats::FileVersion(data);
+				return Explain(pe, ReadVersionData(data, pe), {}).verdict.status;
+			};
+			std::vector<std::string> wouldRun, mayRun, wouldNot;
+			std::size_t              skipped = 0;
+			for (const auto& c : a_found.others) {
+				if (a_scan.OutOfTime()) {
+					++skipped;  // past the deadline: not read, and the report says so
+					continue;
+				}
+				std::string version;
+				const auto  status = judge(c.file, &version);
+				if (!status)
+					continue;
+				auto label = "\"" + c.mod + "\"";
+				if (!version.empty())
+					label += " (file version " + version + ")";
+				else if (const auto mv = a_scan.ModVersion(c.mod); !mv.empty())
+					label += " (mod version " + mv + ")";
+				if (!c.enabled)
+					label += " (off in your MO2 profile)";
+				// Old-Gen: a plugin with F4SEPlugin_Query decides for itself at run time, so its copy may well run.
+				switch (*status) {
+				case Loader::Status::yes: wouldRun.push_back(label); break;
+				case Loader::Status::maybe: mayRun.push_back(label); break;
+				default: wouldNot.push_back(label); break;
+				}
+			}
+			auto join = [](const std::vector<std::string>& v) {
+				std::string s;
+				for (std::size_t i = 0; i < v.size() && i < 4; ++i)
+					s += (i ? ", " : "") + v[i];
+				return v.size() > 4 ? s + std::format(" and {} more", v.size() - 4) : s;
+			};
+			auto count = [](const std::vector<std::string>& v, const char* what) {
+				return std::format("{} other installed mod{} ha{} {}", v.size(), v.size() == 1 ? "" : "s", v.size() == 1 ? "s" : "ve", what);
+			};
+			const char* how = a_scan.manager == "MO2" ? "MO2: put that mod lower in the left pane, and turn it on" : "Vortex: Mods > Conflicts, or remove the older mod";
+			std::string out;
+
+			// MO2: the winning mod's copy is not what the game loaded. Moving mods in the left pane changes nothing then:
+			// the loaded file is in MO2's overwrite folder, or was put in the game's Data folder by hand.
+			if (const auto& top = a_found.shadowed) {
+				const auto status = a_scan.OutOfTime() ? std::nullopt : judge(top->file, nullptr);
+				const auto runs = status && *status != Loader::Status::no;
+				out += std::format(" The game is not loading the copy from \"{}\", your highest-priority MO2 mod with this DLL: the file it loads is a "
+				                   "different one, from MO2's Overwrite folder or put in the game's Data\\F4SE\\Plugins folder by hand.{}",
+					top->mod, !status ? "" : runs ? " That mod's own copy would run." : " That mod's own copy would not run either.");
+				a_advice = runs ? std::format("Remove the other copy of this DLL so the one from \"{}\" is used: in MO2, open Overwrite at the bottom of "
+				                              "the left pane (or the Data tab) and delete or move the old DLL; if it is in the game's own "
+				                              "Data\\F4SE\\Plugins folder, remove it there.",
+				                      top->mod)
+				                : std::format("The DLL the game loads comes from MO2's Overwrite folder or the game's own Data\\F4SE\\Plugins folder, "
+				                              "not from \"{}\". Check Overwrite at the bottom of MO2's left pane (or the Data tab) for an old copy.",
+				                      top->mod);
+			}
+			if (!wouldRun.empty()) {
+				if (a_advice.empty())
+					a_advice = std::format("Another installed mod has a copy of this DLL that would run on your game: {}. Make that mod win the file conflict ({}).",
+						join(wouldRun), how);
+				out += std::format(" {}: {}.", count(wouldRun, "a working copy"), join(wouldRun));
+			}
+			if (!mayRun.empty()) {
+				if (a_advice.empty())
+					a_advice = std::format("Another installed mod has a copy of this DLL that may run on your game (an Old-Gen plugin decides for itself when the game starts): {}. "
+					                       "Try making that mod win the file conflict ({}).",
+						join(mayRun), how);
+				out += std::format(" {} that may run (it decides for itself at start-up): {}.", count(mayRun, "a copy"), join(mayRun));
+			}
+			if (!wouldNot.empty())
+				out += std::format(" {} ({}); {} would not run on your game either.", count(wouldNot, "this DLL too"), join(wouldNot),
+					wouldNot.size() == 1 ? "that copy" : "those copies");
+			if (skipped)
+				out += std::format(" {} more installed cop{} not checked: the time limit before the start-up box was reached.", skipped,
+					skipped == 1 ? "y was" : "ies were");
+			return out;
+		}
+
+		void AddRefused(const Refused& a_r, const ModScan::Result& a_scan)
+		{
+			const auto& file = a_r.file;
+			const auto  pe = ParsePe(a_r.data);
+			if (!pe.ok) {
+				Add("warning", "plugin_dll", file, std::format("{} is in Data\\F4SE\\Plugins but is not running: it is {}.", file, pe.error),
+					"Remove it, or reinstall the mod that provides it.");
+				return;
+			}
+			auto        e = Explain(pe, ReadVersionData(a_r.data, pe), a_r.f4se);
+			std::string group;
+			const auto  why = e.verdict.why;
+			if (why == Loader::Why::no_version_data || why == Loader::Why::no_version_data_query_only) {
+				// Two checks agree or add detail: F4SE cannot load it (above), and when it was built.
+				const auto age = PluginAge(pe, a_r.path);
+				e.text += "." + age.text;
+				group = age.group;
+				if (e.text.back() == '.')
+					e.text.pop_back();
+				if (age.kind == Age::Kind::after)
+					e.advice = "Check the mod page for a Next-Gen/Anniversary file. If you already have the newest, the author has not added support for your game version yet.";
+				else if (age.kind == Age::Kind::before)
+					e.advice = "Look for a Next-Gen/Anniversary version of this mod, or a replacement. Until then its features (and mods that need it) will not work.";
+			}
+			const bool notPlugin = why == Loader::Why::not_plugin;
+			// What the player needs to tell "old mod" from "old copy": the DLL's own version number to compare with the
+			// mod page, which mod's copy is the one deployed, and other mods that carry the same DLL. Another mod
+			// bundling an older copy of a shared DLL, and winning the file conflict, looks exactly like an outdated mod.
+			std::string where;
+			if (const auto ver = Formats::FileVersion(a_r.data); !ver.empty())
+				where += " File version " + ver + ".";
+			std::string copyAdvice;
+			if (const auto* found = a_scan.For(file)) {
+				if (!found->installedBy.empty())
+					where += std::format(" Installed by the {} mod \"{}\".", a_scan.manager, found->installedBy);
+				where += a_scan.NewerOnNexus(found->installedBy);
+				where += OtherCopies(a_scan, *found, copyAdvice);
+			}
+			// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
+			// Library) are reported as problems by their own checks, or by a rule that says so.
+			std::string severity = notPlugin ? "info" : "warning";
+			if (a_r.rule) {
+				// The knowledge rule knows this mod (a replacement, the file to use instead): it stays the advice.
+				e.advice = a_r.rule->message;
+				if (a_r.rule->severity == "problem" || (a_r.rule->severity == "warning" && notPlugin))
+					severity = a_r.rule->severity;
+				if (!copyAdvice.empty())
+					e.advice += " Also: " + copyAdvice;
+			} else if (!copyAdvice.empty()) {
+				e.advice = copyAdvice;  // the fix is already installed; that beats the general advice
+			}
+			Add(severity, "plugin_dll", file,
+				std::format("{} is in Data\\F4SE\\Plugins but is not running: {}.{}{}", file, e.text, where, a_r.f4se.empty() ? ""s : " f4se.log: \"" + a_r.f4se + "\""),
+				e.advice, group)
+				.reason = Loader::Name(why);
+		}
+
 		void CheckDlls(const std::vector<Rule>& a_rules)
 		{
 			const auto      log = F4seLogLines();
 			std::error_code ec;
 			std::size_t     total = 0, running = 0, refused = 0;
 			std::map<std::size_t, std::vector<std::string>> needs;  // index of a 'needs' rule -> DLLs that contain its text
-			const bool anyNeeds = std::ranges::any_of(a_rules, [](const Rule& r) { return r.kind == "needs"; });
+			// 'needs' rules matter only while the file they need is missing (f4rd-runtime.bin is installed on most setups).
+			std::vector<std::size_t> activeNeeds;
+			for (std::size_t i = 0; i < a_rules.size(); ++i)
+				if (a_rules[i].kind == "needs" && !GameFileExists(a_rules[i].extra))
+					activeNeeds.push_back(i);
+			std::vector<Refused> pending;
 
-			for (const auto& entry : std::filesystem::directory_iterator(PluginDir(), ec)) {
-				if (!entry.is_regular_file() || Lower(Narrow(entry.path().extension().wstring())) != ".dll")
+			for (const auto& entry : ListDir(PluginDir())) {
+				if (!entry.is_regular_file(ec) || Lower(Narrow(entry.path().extension().wstring())) != ".dll")
 					continue;
 				++total;
 				const auto file = Narrow(entry.path().filename().wstring());
@@ -375,58 +582,49 @@ namespace Vitals
 					else
 						Add(r.severity, "known_issue", file, r.message);
 				}
-				// The file is read only when something needs its contents: a 'needs' rule, or a DLL that is not running.
-				if (!anyNeeds && inProcess)
+				// A running DLL is never read from disk: it is already in memory, so a 'needs' rule searches the loaded
+				// image. Only a DLL that is not running is read (its contents explain why).
+				if (inProcess) {
+					const auto module = REX::W32::GetModuleHandleW(entry.path().filename().c_str());
+					for (const auto i : activeNeeds)
+						if (ImageContains(module, a_rules[i].match))
+							needs[i].push_back(file);
 					continue;
-				const auto data = ReadFile(entry.path(), 96u << 20);
-				for (std::size_t i = 0; i < a_rules.size(); ++i)
-					if (a_rules[i].kind == "needs" && Contains(data, a_rules[i].match))
+				}
+				auto data = ReadFile(entry.path(), 96u << 20);
+				for (const auto i : activeNeeds)
+					if (Contains(data, a_rules[i].match))
 						needs[i].push_back(file);
-				if (inProcess)
-					continue;
 
 				++refused;
-				const auto f4se = F4seSays(log, file);
-				const auto pe = ParsePe(data);
-				if (!pe.ok) {
-					Add("warning", "plugin_dll", file, std::format("{} is in Data\\F4SE\\Plugins but is not running: it is {}.", file, pe.error),
-						"Remove it, or reinstall the mod that provides it.");
-					continue;
-				}
-				auto        e = Explain(pe, ReadVersionData(data, pe), f4se);
-				std::string group;
-				const auto  why = e.verdict.why;
-				if (why == Loader::Why::no_version_data || why == Loader::Why::no_version_data_query_only) {
-					// Two checks agree or add detail: F4SE cannot load it (above), and when it was built.
-					const auto age = PluginAge(pe, entry.path());
-					e.text += "." + age.text;
-					group = age.group;
-					if (e.text.back() == '.')
-						e.text.pop_back();
-					if (age.kind == Age::Kind::after)
-						e.advice = "Check the mod page for a newer file: the author may have released one with Next-Gen/Anniversary support.";
-					else if (age.kind == Age::Kind::before)
-						e.advice = "Look for an updated version of this mod for your game version, or a replacement. Until then its features (and mods that need it) will not work.";
-				}
-				const bool notPlugin = why == Loader::Why::not_plugin;
-				// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
-				// Library) are reported as problems by their own checks, or by a rule that says so.
-				std::string severity = notPlugin ? "info" : "warning";
-				if (refusedRule) {
-					e.advice = refusedRule->message;
-					if (refusedRule->severity == "problem" || (refusedRule->severity == "warning" && notPlugin))
-						severity = refusedRule->severity;
-				}
-				Add(severity, "plugin_dll", file,
-					std::format("{} is in Data\\F4SE\\Plugins but is not running: {}.{}", file, e.text, f4se.empty() ? ""s : " f4se.log: \"" + f4se + "\""),
-					e.advice, group)
-					.reason = Loader::Name(why);
+				auto& r = pending.emplace_back();
+				r.file = file;
+				r.path = entry.path();
+				r.rule = refusedRule;
+				r.f4se = F4seSays(log, file);
+				r.data = std::move(data);
 			}
+
+			// What the mod manager knows, for all the not-running DLLs in one pass (src/ModScan.cpp).
+			ModScan::Result scan;
+			if (!pending.empty()) {
+				std::vector<ModScan::Deployed> deployed;
+				for (const auto& r : pending)
+					deployed.push_back({ r.file, &r.data });
+				try {
+					// one 2-second budget for everything about other copies, before the start-up box
+					scan = ModScan::Find(deployed, std::chrono::steady_clock::now() + std::chrono::seconds(2));
+				} catch (const std::exception& ex) {
+					g_info.push_back(std::format("Mod manager: the look for other copies stopped early ({})", ex.what()));
+				}
+				for (const auto& n : scan.notes)
+					g_info.push_back(n);
+			}
+			for (const auto& r : pending)
+				AddRefused(r, scan);
 
 			for (const auto& [index, dlls] : needs) {
 				const auto& r = a_rules[index];
-				if (GameFileExists(r.extra))
-					continue;
 				std::string list;
 				for (const auto& d : dlls)
 					list += (list.empty() ? "" : ", ") + d;
@@ -673,7 +871,9 @@ namespace Vitals
 					if (!cutoff || !std::filesystem::exists(path, ec))
 						continue;
 					const auto when = FileTimeToSys(std::filesystem::last_write_time(path, ec));
-					if (!ec && when && *when < *cutoff)
+					// A date before Fallout 4 came out (some archives store 1980-01-01) says nothing about the file.
+					constexpr auto kGameRelease = std::chrono::sys_days{ std::chrono::year{ 2015 } / 11 / 10 };
+					if (!ec && when && *when >= kGameRelease && *when < *cutoff)
 						Add(r.severity, "loose_file", r.match,
 							std::format("{} is a loose file dated {:%Y-%m-%d}, older than {}. {}", r.match, std::chrono::floor<std::chrono::days>(*when), r.extra, r.message));
 				} else if (r.kind == "file") {
@@ -710,13 +910,19 @@ namespace Vitals
 					out << "  - " << Redact(i.message) << "\n";
 					if (!i.advice.empty())
 						out << "    What to do: " << Redact(i.advice) << "\n";
+					out << "\n";  // a blank line between entries
 				}
 			}
+			if (std::ranges::any_of(g_issues, [](const Issue& i) { return !i.group.empty(); }))
+				out << "TIP: the \"File version\" and \"Installed by\" details above show which copy of a mod is in your game. If you just\n"
+				       "installed the newest file of a mod listed here and it still shows, another mod may be overwriting it with an older\n"
+				       "copy: check the file conflicts in your mod manager (Vortex: Mods > Conflicts; MO2: the Data tab).\n";
 			if (!g_addrNotes.empty()) {
 				out << "\nADDRESS CHECK (main menu)\n";
 				for (const auto& n : g_addrNotes)
 					out << "  " << Redact(n) << "\n";
 			}
+			out << ShareReportText();
 			out << "\nDetails: Vitals.jsonl and Vitals-summary.txt in this folder. Vitals only reads; it changes nothing in your game.\n";
 		}
 
@@ -735,9 +941,11 @@ namespace Vitals
 			const auto    callNext = reinterpret_cast<CallNext_t>(user32 ? REX::W32::GetProcAddress(user32, "CallNextHookEx") : nullptr);
 			if (a_code == kActivate && setText) {
 				const auto dlg = reinterpret_cast<void*>(a_wParam);
+				g_box = dlg;
 				setText(dlg, 3, L"Stop game");          // IDABORT
 				setText(dlg, 4, L"Don't show");          // IDRETRY
 				setText(dlg, 5, L"Continue");           // IDIGNORE
+				setText(dlg, 9, L"Copy report");        // IDHELP
 			}
 			const auto hook = g_hook;  // the handle is ignored by CallNextHookEx on current Windows, but pass the real one
 			const auto r = callNext ? callNext(hook, a_code, a_wParam, a_lParam) : 0;
@@ -749,7 +957,68 @@ namespace Vitals
 			return r;
 		}
 
-		// 3 = Stop game, 4 = Don't show, 5 = Continue
+		// Copy report (the box's Help button): puts Vitals-Report.txt on the clipboard and leaves the box open. The
+		// report is already scrubbed of the user name. Windows calls this for the Help button instead of closing the box.
+		void __stdcall CopyReport(void* /*a_helpInfo*/)
+		{
+			using Open_t = int(__stdcall*)(void*);
+			using Empty_t = int(__stdcall*)();
+			using Set_t = void*(__stdcall*)(std::uint32_t, void*);
+			using Close_t = int(__stdcall*)();
+			using SetText_t = int(__stdcall*)(void*, const wchar_t*);
+			using Alloc_t = void*(__stdcall*)(std::uint32_t, std::size_t);
+			using Lock_t = void*(__stdcall*)(void*);
+			using Unlock_t = int(__stdcall*)(void*);
+			using Free_t = void*(__stdcall*)(void*);
+			using Item_t = void*(__stdcall*)(void*, int);
+			const auto user32 = REX::W32::GetModuleHandleW(L"user32.dll");
+			const auto kernel32 = REX::W32::GetModuleHandleW(L"kernel32.dll");
+			if (!user32 || !kernel32)
+				return;
+			const auto open = reinterpret_cast<Open_t>(REX::W32::GetProcAddress(user32, "OpenClipboard"));
+			const auto empty = reinterpret_cast<Empty_t>(REX::W32::GetProcAddress(user32, "EmptyClipboard"));
+			const auto set = reinterpret_cast<Set_t>(REX::W32::GetProcAddress(user32, "SetClipboardData"));
+			const auto close = reinterpret_cast<Close_t>(REX::W32::GetProcAddress(user32, "CloseClipboard"));
+			const auto setText = reinterpret_cast<SetText_t>(REX::W32::GetProcAddress(user32, "SetWindowTextW"));
+			const auto alloc = reinterpret_cast<Alloc_t>(REX::W32::GetProcAddress(kernel32, "GlobalAlloc"));
+			const auto lock = reinterpret_cast<Lock_t>(REX::W32::GetProcAddress(kernel32, "GlobalLock"));
+			const auto unlock = reinterpret_cast<Unlock_t>(REX::W32::GetProcAddress(kernel32, "GlobalUnlock"));
+			const auto release = reinterpret_cast<Free_t>(REX::W32::GetProcAddress(kernel32, "GlobalFree"));
+			const auto item = reinterpret_cast<Item_t>(REX::W32::GetProcAddress(user32, "GetDlgItem"));
+			if (!open || !empty || !set || !close || !alloc || !lock || !unlock || !release)
+				return;
+			std::ifstream in(OutputDir() / L"Vitals-Report.txt", std::ios::binary);
+			const std::string report((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			std::wstring text;
+			for (const auto c : Widen(report)) {  // the clipboard wants Windows line ends
+				if (c == L'\n' && (text.empty() || text.back() != L'\r'))
+					text += L'\r';
+				text += c;
+			}
+			constexpr std::uint32_t kMoveable = 0x2, kUnicodeText = 13;
+			const auto              mem = alloc(kMoveable, (text.size() + 1) * sizeof(wchar_t));
+			if (!mem)
+				return;
+			if (const auto p = lock(mem)) {
+				std::memcpy(p, text.c_str(), (text.size() + 1) * sizeof(wchar_t));
+				unlock(mem);
+			}
+			bool done = false;
+			// a window must own the clipboard, or SetClipboardData fails: the message box itself
+			if (open(g_box)) {
+				empty();
+				done = set(kUnicodeText, mem) != nullptr;
+				close();
+			}
+			if (!done)
+				release(mem);  // on success the clipboard owns it
+			// relabel the button itself (the help info may name the box, whose title must stay)
+			if (const auto button = (item && g_box) ? item(g_box, 9) : nullptr; setText && button)
+				setText(button, done ? L"Copied" : L"Copy failed");
+			Emit("doctor_popup_copy", Json().Bool("copied", done).UNum("chars", text.size()));
+		}
+
+		// 3 = Stop game, 4 = Don't show, 5 = Continue (Copy report keeps the box open)
 		int ShowPopup(const std::wstring& a_text)
 		{
 			using SetHook_t = void*(__stdcall*)(int, std::intptr_t(__stdcall*)(int, std::uintptr_t, std::intptr_t), void*, std::uint32_t);
@@ -757,8 +1026,33 @@ namespace Vitals
 			const auto setHook = reinterpret_cast<SetHook_t>(user32 ? REX::W32::GetProcAddress(user32, "SetWindowsHookExW") : nullptr);
 			if (setHook)
 				g_hook = setHook(5 /*WH_CBT*/, &RenameButtons, nullptr, REX::W32::GetCurrentThreadId());
-			constexpr std::uint32_t kAbortRetryIgnore = 0x2, kWarning = 0x30, kDefButton3 = 0x200, kSetForeground = 0x10000, kTopmost = 0x40000;
-			const auto              r = REX::W32::MessageBoxW(nullptr, a_text.c_str(), L"Vitals - mod setup problems", kAbortRetryIgnore | kWarning | kDefButton3 | kSetForeground | kTopmost);
+			constexpr std::uint32_t kAbortRetryIgnore = 0x2, kWarning = 0x30, kDefButton3 = 0x200, kHelp = 0x4000, kSetForeground = 0x10000, kTopmost = 0x40000;
+			// MessageBoxIndirectW: the only message box with a callback for its Help button (Copy report)
+			struct MsgBoxParams
+			{
+				std::uint32_t  size;
+				void*          owner;
+				void*          instance;
+				const wchar_t* text;
+				const wchar_t* caption;
+				std::uint32_t  style;
+				const wchar_t* icon;
+				std::uintptr_t contextHelpId;
+				void(__stdcall* callback)(void*);
+				std::uint32_t  languageId;
+			};
+			using Indirect_t = int(__stdcall*)(const MsgBoxParams*);
+			const auto indirect = reinterpret_cast<Indirect_t>(user32 ? REX::W32::GetProcAddress(user32, "MessageBoxIndirectW") : nullptr);
+			constexpr std::uint32_t style = kAbortRetryIgnore | kWarning | kDefButton3 | kSetForeground | kTopmost;
+			const auto title = L"Vitals - " + Widen(F4SE::GetPluginVersion().string());
+			int        r = 0;
+			if (indirect) {
+				const MsgBoxParams p{ sizeof(MsgBoxParams), nullptr, nullptr, a_text.c_str(), title.c_str(), style | kHelp, nullptr, 0, &CopyReport, 0 };
+				r = indirect(&p);
+			} else {
+				r = REX::W32::MessageBoxW(nullptr, a_text.c_str(), title.c_str(), style);
+			}
+			g_box = nullptr;
 			if (g_hook) {  // the box never activated (should not happen): do not leave the hook installed
 				using Unhook_t = std::int32_t(__stdcall*)(void*);
 				if (const auto unhook = reinterpret_cast<Unhook_t>(user32 ? REX::W32::GetProcAddress(user32, "UnhookWindowsHookEx") : nullptr))
@@ -835,10 +1129,10 @@ namespace Vitals
 			if (!dllShown.empty()) {
 				// Plugins F4SE skips for lack of version data are listed together, split by when they were built.
 				struct Grp { const char* name; const char* title; std::string list; std::size_t n{ 0 }; };
-				std::array<Grp, 4> groups{ { { "pre", "made before the April 2024 Next-Gen update (outdated)", {}, 0 },
-					{ "post", "built after that update (the mod page may have a newer file)", {}, 0 },
-					{ "unknown", "build date unknown", {}, 0 },
-					{ "", "other reasons (see the report)", {}, 0 } } };
+				std::array<Grp, 4> groups{ { { "pre", "Built before April 2024 (made for Old-Gen)", {}, 0 },
+					{ "post", "Built after April 2024, but without Next-Gen data (check the mod page)", {}, 0 },
+					{ "unknown", "Build date unknown", {}, 0 },
+					{ "", "Other reasons (see the report)", {}, 0 } } };
 				for (const auto* p : dllShown)
 					for (auto& g : groups)
 						if (p->group == g.name || !*g.name) {
@@ -846,14 +1140,14 @@ namespace Vitals
 							++g.n;
 							break;
 						}
-				text += std::format("MODS NOT RUNNING ({} F4SE plugin(s) are installed but F4SE did not load them, so their features will not work):\n", dllShown.size());
+				text += std::format("MODS NOT RUNNING: {} F4SE plugin(s) are installed but F4SE did not load them, so their features will not work.\n", dllShown.size());
 				for (const auto& g : groups)
 					if (g.n)
-						text += std::format("- {} {}: {}\n", g.n, g.title, g.list.size() > 300 ? Rules::Utf8Prefix(g.list, 300) + ", ..." : g.list);
+						text += std::format("\n{} ({}):\n    {}\n", g.title, g.n, g.list.size() > 300 ? Rules::Utf8Prefix(g.list, 300) + ", ..." : g.list);
 				text += "\n";
 			}
 			text += "Full report with what to do: " + ReportPathText() +
-			        "\n\nContinue: start the game (this box shows again next launch).   Don't show: stop listing these plugins (problems that may crash the game still show).   Stop game: close it now so you can fix this first.";
+			        "\n\nContinue = start the game (shows again next launch)\nDon't show = Vitals stops listing these plugins\nStop game = abort and fix manually\nCopy report = copy the full report";
 			Emit("doctor_popup", Json().UNum("crash_risks", crashShown.size()).UNum("not_running", dllShown.size()));
 			const auto choice = ShowPopup(Widen(text));
 			if (choice == 4) {
@@ -880,11 +1174,24 @@ namespace Vitals
 		Crumb("Vitals", "doctor");
 		std::scoped_lock l(g_lock);
 		const auto       started = std::chrono::steady_clock::now();
-		const auto rules = LoadRules();
-		CheckDlls(rules);
-		CheckLoadOrder();
-		CheckFileRules(rules);
-		CheckLooseFileSetup();
+		// Each check on its own: one that stops early (a file that cannot be read) leaves a line in the report, and the
+		// others, the report and the box still run, so an old report is never left in place as if it were this one.
+		auto step = [](const char* a_name, auto&& a_fn) {
+			try {
+				a_fn();
+			} catch (const std::exception& e) {
+				g_info.push_back(std::format("The {} check stopped early ({}); its results are missing from this report", a_name, e.what()));
+				Emit("error", Json().Str("step", std::string("doctor_") + a_name).Str("what", e.what()));
+			} catch (...) {
+				g_info.push_back(std::format("The {} check stopped early; its results are missing from this report", a_name));
+			}
+		};
+		std::vector<Rule> rules;
+		step("knowledge rules", [&] { rules = LoadRules(); });
+		step("F4SE plugin", [&] { CheckDlls(rules); });
+		step("load order", [] { CheckLoadOrder(); });
+		step("known file", [&] { CheckFileRules(rules); });
+		step("loose file", [] { CheckLooseFileSetup(); });
 		std::size_t problems = 0, warnings = 0;
 		for (const auto& i : g_issues) {
 			Json j;
@@ -901,8 +1208,10 @@ namespace Vitals
 		Emit("doctor", Json().UNum("rules", rules.size()).UNum("problems", problems).UNum("warnings", warnings).UNum("issues", g_issues.size())
 			.UNum("ms", static_cast<std::uint64_t>(ms)));
 		Summary(std::format("Doctor: {} problem(s), {} warning(s), {} rules loaded. See Vitals-Report.txt", problems, warnings, rules.size()));
-		WriteReport();
-		MaybePopup();
+		Guarded("doctor_report", WriteReport);
+		// The share pack is written on its own thread while the box is open: pressing "Stop game" ends the process.
+		Guarded("share_pack", [] { WriteSharePack("start"); });
+		Guarded("doctor_popup", MaybePopup);
 	}
 
 	void DoctorAddressNote(std::string_view a_line)

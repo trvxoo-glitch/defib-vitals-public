@@ -268,6 +268,42 @@ class PackageTests(unittest.TestCase):
             os.remove(os.path.join(out, "00 Core", "F4SE", "Plugins", "Vitals.dll"))
             self.assertEqual(make_package.check(out), 1)
 
+    def test_share_marker_only_in_opt_in_folder(self):
+        import make_package
+        with tempfile.TemporaryDirectory() as tmp:
+            dll = os.path.join(tmp, "Vitals.dll")
+            open(dll, "wb").write(b"MZ")
+            out = os.path.join(tmp, "package")
+            self.assertEqual(make_package.build(dll, out), 0)
+            marker = os.path.join(out, "20 Share - Yes", "F4SE", "Plugins", "Vitals", "share-optin.txt")
+            self.assertIn("bSharePack=0", open(marker, encoding="utf-8").read())
+            self.assertTrue(make_package.share_on(marker))
+            no = os.path.join(out, "21 Share - No", "F4SE", "Plugins", "Vitals", "share-optin.txt")
+            self.assertFalse(make_package.share_on(no))  # picking No replaces an earlier Yes on reinstall
+            # the opt-in is never pre-selected
+            cfg = open(os.path.join(out, "fomod", "ModuleConfig.xml"), encoding="utf-8").read()
+            self.assertIn("Yes, help improve Vitals", cfg)
+            # a marker anywhere else would switch sharing on for everyone
+            stray = os.path.join(out, "00 Core", "F4SE", "Plugins", "Vitals", "share-optin.txt")
+            open(stray, "w").write("x")
+            self.assertEqual(make_package.check(out), 1)
+            os.remove(stray)
+            self.assertEqual(make_package.check(out), 0)
+            cfgp = os.path.join(out, "fomod", "ModuleConfig.xml")
+            bad = cfg.replace('<folder source="20 Share - Yes" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Optional" />',
+                              '<folder source="20 Share - Yes" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Recommended" />')
+            self.assertNotEqual(bad, cfg)
+            open(cfgp, "w", encoding="utf-8").write(bad)
+            self.assertEqual(make_package.check(out), 1)
+            # No must stay the pre-selected default
+            bad_no = cfg.replace('<folder source="21 Share - No" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Recommended" />',
+                                 '<folder source="21 Share - No" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Optional" />')
+            self.assertNotEqual(bad_no, cfg)
+            open(cfgp, "w", encoding="utf-8").write(bad_no)
+            self.assertEqual(make_package.check(out), 1)
+            open(cfgp, "w", encoding="utf-8").write(cfg)
+            self.assertEqual(make_package.check(out), 0)
+
 
 class AgeNoteTests(unittest.TestCase):
     def _dll(self, tmp, ts):
@@ -285,10 +321,44 @@ class AgeNoteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             old = calendar.timegm(datetime.datetime(2021, 8, 7).timetuple())
             new = calendar.timegm(datetime.datetime(2025, 3, 1).timetuple())
-            self.assertIn("Built 2021-08-07, before the April 2024 Next-Gen update", defib_preflight.age_note(self._dll(tmp, old)))
-            self.assertIn("Built 2025-03-01, after the Next-Gen update", defib_preflight.age_note(self._dll(tmp, new)))
+            self.assertIn("Built (date inside the DLL) 2021-08-07, before the April 2024 Next-Gen update", defib_preflight.age_note(self._dll(tmp, old)))
+            self.assertIn("Built (date inside the DLL) 2025-03-01, after the Next-Gen update", defib_preflight.age_note(self._dll(tmp, new)))
             # a reproducible build has a meaningless timestamp: fall back to the file date and say it is weaker
             self.assertIn("Its file is dated", defib_preflight.age_note(self._dll(tmp, 0xDEADBEEF)))
+            # the wording does not call a file outdated: the newest file on a mod page may simply lack Next-Gen support
+            self.assertNotIn("outdated", defib_preflight.age_note(self._dll(tmp, old)))
+            self.assertIn("most likely made for Old-Gen", defib_preflight.age_note(self._dll(tmp, old)))
+            # a /Brepro build (debug entry type 16) has a hash for a timestamp: do not trust it
+            repro = self._dll(tmp, new)
+            d = bytearray(open(repro, "rb").read())
+            d = bytearray(d + bytes(0x2000))
+            struct.pack_into("<H", d, 0x86, 1)
+            struct.pack_into("<H", d, 0x94, 0xF0)
+            struct.pack_into("<H", d, 0x98, 0x20B)
+            struct.pack_into("<II", d, 0x98 + 160, 0x1000, 28)
+            sec = 0x98 + 0xF0
+            struct.pack_into("<IIII", d, sec + 8, 0x1000, 0x1000, 0x1000, 0x400)
+            struct.pack_into("<I", d, 0x400 + 12, 16)
+            open(repro, "wb").write(bytes(d))
+            self.assertIn("Its file is dated", defib_preflight.age_note(repro))
+
+    def test_linker_floor_beats_a_fake_old_date(self):
+        import calendar, datetime, defib_preflight
+        with tempfile.TemporaryDirectory() as tmp:
+            old = calendar.timegm(datetime.datetime(2020, 1, 1).timetuple())
+            p = self._dll(tmp, old)
+            d = bytearray(open(p, "rb").read())
+            d[0x98 + 2], d[0x98 + 3] = 14, 44  # linker 14.44: Visual Studio 2022 17.14, May 2025
+            open(p, "wb").write(bytes(d))
+            os.utime(p, (old, old))  # the file date is old too (an archive can do that)
+            note = defib_preflight.age_note(p)
+            self.assertIn("linker first released 2025-05-13", note)
+            self.assertIn("after the Next-Gen update", note)
+            self.assertNotIn("Old-Gen", note)
+            # an old linker with an old date: the date stands
+            d[0x98 + 3] = 20
+            open(p, "wb").write(bytes(d))
+            self.assertIn("Built (date inside the DLL) 2020-01-01", defib_preflight.age_note(p))
 
 
 class LooseSetupTests(unittest.TestCase):
@@ -365,7 +435,135 @@ class LoaderRulesTests(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+class ShareInboxTests(unittest.TestCase):
+    def _pack(self, folder, n, install, dlls, crash=None):
+        import zipfile
+        path = os.path.join(folder, f"p{n}.zip")
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as z:
+            z.writestr("manifest.json", json.dumps({"format": "vitals-share 1", "install_id": install, "runtime": "AE", "game_version": "1.11.240"}))
+            lines = [json.dumps({"kind": "doctor_issue", "severity": "warning", "category": "plugin_dll", "subject": d, "reason": "no_version_data"}) for d in dlls]
+            z.writestr("Vitals.jsonl", "\n".join(lines) + "\n{\"kind\": cut off")
+            z.writestr("dll-sources.txt", "header\ndll | mod folder\n" + "".join(f"{d} | Mod-{d}-1\n" for d in dlls))
+            z.writestr("papyrus-summary.txt", '  3x  Unbound native function "GetVersion" in object "SUP_F4SE" -- x\n')
+            if crash:
+                z.writestr("crash/crash-1.log", crash)
+        return path
+
+    def test_summary_counts_installs_and_finds_candidates(self):
+        import share_inbox
+        with tempfile.TemporaryDirectory() as tmp:
+            crash = 'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF6 Fallout4.exe+2a3b4c5\n\nPROBABLE CALL STACK:\n\t[0] 0x1 X.dll+0001234\n'
+            for i in range(6):
+                self._pack(tmp, i, f"{i:032x}", ["NewThing.dll", "XDI.dll"], crash if i < 2 else None)
+            self._pack(tmp, 9, f"{0:032x}", ["NewThing.dll"])  # same install again: counted once
+            open(os.path.join(tmp, "junk.zip"), "wb").write(b"not a zip")
+            text, info = share_inbox.summarize(tmp, min_installs=5)
+            self.assertEqual(info["installs"], 6)
+            self.assertEqual(info["packs"], 7)
+            self.assertIn("NewThing.dll", info["candidates"])
+            self.assertNotIn("XDI.dll", info["candidates"])  # defib-census.txt has a rule for it
+            self.assertIn("| Fallout4.exe+2A3B4C5 | 2 |", text)
+            self.assertIn("| X.dll | 2 |", text)
+            self.assertIn("| SUP_F4SE.GetVersion | 6 |", text)
+            self.assertIn("Mod-NewThing.dll-1", text)
+
+
+class DiscordPullTests(unittest.TestCase):
+    def test_pull_discord_downloads_zips_once(self):
+        import share_inbox
+        calls = []
+
+        def fake(path, token, binary=False):
+            calls.append(path)
+            self.assertEqual(token, "tok")
+            if path == "/guilds/G/channels":
+                return [{"id": "1", "type": 0, "parent_id": "CAT"}, {"id": "2", "type": 0, "parent_id": "OTHER"}, {"id": "3", "type": 4}]
+            if path.startswith("/channels/1/messages"):
+                return [{"id": "10", "attachments": [{"id": "5", "filename": "Vitals-Share.zip", "size": 100, "url": "http://x/a.zip"},
+                                                     {"id": "6", "filename": "notes.txt", "size": 5, "url": "http://x/n.txt"},
+                                                     {"id": "7", "filename": "../../evil.zip", "size": 5, "url": "http://x/e.zip"}]}]
+            return b"PK"
+        orig = share_inbox._discord
+        share_inbox._discord = fake
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual(share_inbox.pull_discord(tmp, "tok", "G", "CAT"), 2)
+                self.assertEqual(sorted(os.listdir(tmp)), ["10_5-Vitals-Share.zip", "10_7-.._.._evil.zip"])
+                self.assertEqual(share_inbox.pull_discord(tmp, "tok", "G", "CAT"), 0)  # nothing new the second time
+            self.assertFalse(any("/channels/2/" in c for c in calls))  # only the chosen category is read
+        finally:
+            share_inbox._discord = orig
+
+    def test_category_is_required(self):
+        import share_inbox
+        env = {k: os.environ.pop(k) for k in ("VITALS_DISCORD_CATEGORY",) if k in os.environ}
+        try:
+            with tempfile.TemporaryDirectory() as tmp, self.assertRaises(SystemExit):
+                share_inbox.pull_discord(tmp, "tok", "G", "")
+        finally:
+            os.environ.update(env)
+
+    def test_token_only_goes_to_the_api(self):
+        import share_inbox
+        import urllib.request
+        seen = []
+
+        class R:
+            def __init__(self, req):
+                seen.append((req.full_url, req.get_header("Authorization")))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b"[]"
+        orig = urllib.request.urlopen
+        urllib.request.urlopen = lambda req, timeout=0: R(req)
+        try:
+            share_inbox._discord("/guilds/G/channels", "tok")
+            share_inbox._discord("https://cdn.discordapp.com/attachments/1/2/Vitals-Share.zip", "tok", binary=True)
+        finally:
+            urllib.request.urlopen = orig
+        self.assertEqual(seen[0][1], "Bot tok")
+        self.assertIsNone(seen[1][1])
+        # a link that is not Discord's file server is never fetched, with or without the token
+        for bad in ("https://evil.example/x.zip", "http://cdn.discordapp.com/x.zip", "https://cdn.discordapp.com.evil.example/x.zip"):
+            with self.assertRaises(SystemExit):
+                share_inbox._discord(bad, "tok", binary=True)
+
+    def test_zip_bomb_is_skipped(self):
+        import share_inbox
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, "bomb.zip")
+            with zipfile.ZipFile(p, "w", zipfile.ZIP_DEFLATED) as z:
+                z.writestr("manifest.json", '{"format":"vitals-share 1"}')
+                z.writestr("Vitals.jsonl", b"\0" * (20 << 20))
+            self.assertIsNone(share_inbox.read_pack(p))
+
+
 class PreflightEdgeTests(unittest.TestCase):
+    def test_rule_runtime_tags(self):
+        import defib_preflight
+        with tempfile.TemporaryDirectory() as tmp:
+            game = os.path.join(tmp, "game")
+            os.makedirs(os.path.join(game, "Data", "Interface"))
+            swf = os.path.join(game, "Data", "Interface", "MainMenu.swf")
+            open(swf, "w").write("x")
+            os.utime(swf, (1577836800, 1577836800))  # 2020
+            rules = os.path.join(tmp, "r.txt")
+            open(rules, "w").write("oldfile@NG,AE | Data\\Interface\\MainMenu.swf | 2024-04-25 | problem | old menu\n")
+            r = defib_preflight.load_rules([rules])
+            self.assertEqual(r[0]["kind"], "oldfile")
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.11.240", [])), 1)
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.10.984", [])), 1)
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.10.163", [])), 0)
+            os.utime(swf, (315532800, 315532800))  # 1980-01-01, an archive with no real date
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.11.240", [])), 0)
+
     def test_bad_rule_date_is_skipped(self):
         import defib_preflight
         with tempfile.TemporaryDirectory() as game:

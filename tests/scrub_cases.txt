@@ -1,0 +1,188 @@
+# Share-pack scrubber cases: include/Vitals/Scrub.h (tests/cpp/rules_test.cpp)
+# must turn every "text:" or "crash:" line into the "want:" line after it.
+# All personal data here is made up. Add a case for every miss someone reports.
+#
+#   ctx user=NAME | ctx pc=NAME | ctx domain=NAME | ctx root=FOLDER|TOKEN   context for the cases below
+#   ctx reset                                                               forget the context
+#   text: ...   Scrub::Text           crash: ...   Scrub::CrashLog          want: ...  expected result
+# Lines are used as written (no escapes); a trailing space is part of the line.
+
+ctx user=Robin Hale
+ctx pc=DESKTOP-4F7K2Q
+ctx domain=DESKTOP-4F7K2Q
+ctx root=D:\Games\Fallout 4|<game>
+ctx root=C:\Users\Robin Hale\Documents|<docs>
+ctx root=C:\Users\Robin Hale\AppData\Local|<localappdata>
+ctx root=E:\Vortex\fallout4\mods|<staging>
+
+# known folders, in all three spellings
+text: plugin directory = D:\Games\Fallout 4\Data\F4SE\Plugins\
+want: plugin directory = <game>\Data\F4SE\Plugins\
+text: {"game_dir":"D:\\Games\\Fallout 4"}
+want: {"game_dir":"<game>"}
+text: loaded D:/Games/Fallout 4/Data/F4SE/Plugins/XDI.dll ok
+want: loaded <game>/Data/F4SE/Plugins/XDI.dll ok
+text: C:\Users\Robin Hale\Documents\My Games\Fallout4\F4SE\f4se.log
+want: <docs>\My Games\Fallout4\F4SE\f4se.log
+text: c:\users\robin hale\appdata\local\Fallout4\plugins.txt
+want: <localappdata>\Fallout4\plugins.txt
+text: E:\Vortex\fallout4\mods\Workshop Framework-35004-2-3-9\F4SE\Plugins\wsfw_identifier.dll
+want: <staging>\Workshop Framework-35004-2-3-9\F4SE\Plugins\wsfw_identifier.dll
+# a longer folder name is not the game folder
+text: D:\Games\Fallout 4 Backup\x.txt
+want: <path>\Fallout 4 Backup\x.txt
+
+# user names
+text: C:\Users\Robin Hale\Desktop\notes.txt
+want: <path>\Desktop\notes.txt
+text: profile at C:\Users\Someone Else\OneDrive\Documents
+want: profile at <path>\OneDrive\Documents
+text: /home/robin/.steam/steam
+want: /home/<user>/.steam/steam
+text: C:\Users\Public\Documents\x.ini
+want: <path>\Documents\x.ini
+text: Started by Robin Hale at 10:42:13
+want: Started by <user> at 10:42:13
+
+# PC name
+text: Computer name: DESKTOP-4F7K2Q
+want: Computer name: <pc>
+text: \\DESKTOP-4F7K2Q\share
+want: \\<pc>\share
+
+# Mod Organizer 2 profiles
+text: <staging>\..\profiles\Robin's Survival Run\plugins.txt
+want: <staging>\..\profiles\<profile>\plugins.txt
+
+# Steam
+text: Steam\userdata\123456789\377160\remote
+want: Steam\userdata\<account>\377160\remote
+text: steamid 76561198012345678 signed in
+want: steamid <account> signed in
+
+# SIDs and GUIDs
+text: owner S-1-5-21-3623811015-3361044348-30300820-1013 ok
+want: owner <sid> ok
+text: adapter {6B29FC40-CA47-1067-B31D-00DD010662DA}
+want: adapter {<guid>}
+
+# emails
+text: contact robin.hale+mods@example.com for help.
+want: contact <email> for help.
+text: not an email: Fallout4.esm@0x1234 or user@localhost
+want: not an email: Fallout4.esm@0x1234 or user@localhost
+
+# secrets
+text: apikey=Abc123Def456Ghi789 next
+want: apikey=<secret> next
+text: {"password": "hunter2hunter2"}
+want: {"password": "<secret>"}
+text: Authorization: Bearer abcDEF123ghiJKL456
+want: Authorization: Bearer <secret>
+text: key Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRkdISUpLTE1O-- end
+want: key <secret> end
+
+text: ccFSVFO4001-ModularMilitaryBackpack.esl and ccBGSFO4034-PowerArmorSkinYellow.esl
+want: ccFSVFO4001-ModularMilitaryBackpack.esl and ccBGSFO4034-PowerArmorSkinYellow.esl
+# SHA-256 hashes and long mod names stay
+text: "sha256":"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+want: "sha256":"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+text: Some_Long_Mod_Name_With_Version_Number_v2
+want: Some_Long_Mod_Name_With_Version_Number_v2
+
+# IP and MAC addresses; versions stay
+text: connected to 192.168.1.20:8080 and 203.0.113.7
+want: connected to <ip>:8080 and <ip>
+text: runtime 1.11.240.0, F4SE 0.7.2.0, Next-Gen 1.10.984.0
+want: runtime 1.11.240.0, F4SE 0.7.2.0, Next-Gen 1.10.984.0
+text: "file_version":"12.0.1.5"
+want: "file_version":"12.0.1.5"
+text: ipv6 fe80::1c2b:3a4d:5e6f:7081 and 2001:db8:85a3::8a2e:370:7334.
+want: ipv6 <ip> and <ip>.
+text: mac 00:1A:2B:3C:4D:5E and 00-1A-2B-3C-4D-5F
+want: mac <mac> and <mac>
+text: time 12:34:56:789 and Actor::InitItemImpl and RE::TESForm
+want: time 12:34:56:789 and Actor::InitItemImpl and RE::TESForm
+text: 2026-11-15 10:42:13 version 1.2.3.4
+want: 2026-11-15 10:42:13 version 1.2.3.4
+
+# other paths keep their last two names
+text: F:\Private Stuff\Modding\Downloads\XDI-1234\XDI.dll was loaded
+want: <path>\XDI-1234\XDI.dll was loaded
+text: "path":"F:\\Mods\\Cache\\x.bin"
+want: "path":"<path>\\Cache\\x.bin"
+text: G:\Tools
+want: <path>\Tools
+text: D:\A\B\C.txt; see https://www.nexusmods.com/fallout4/mods/111452
+want: <path>\B\C.txt; see https://www.nexusmods.com/fallout4/mods/111452
+text: copy F:\x\y\z.dll to G:\p\q\r.dll
+want: copy <path>\y\z.dll to <path>\q\r.dll
+
+# crash logs: quoted text from memory (a save path names the character, so paths with spaces go too)
+crash: 	RAX 0x1F (char*) "Hello Robin"
+want: 	RAX 0x1F (char*) <text>
+crash: 		Name: "Nate"
+want: 		Name: <text>
+crash: 		File: "Fallout4.esm"
+want: 		File: "Fallout4.esm"
+crash: 		EditorID: "WorkshopNPCScript"
+want: 		EditorID: "WorkshopNPCScript"
+crash: 		Name: "JohnSmith"
+want: 		Name: <text>
+crash: 		Name: "RobinHale99"
+want: 		Name: <text>
+crash: 	RCX 0x0 (char*) "Nate_2077"
+want: 	RCX 0x0 (char*) <text>
+crash: 	RDX 0x0 (char*) "Scripts\WorkshopParentScript.pex"
+want: 	RDX 0x0 (char*) "Scripts\WorkshopParentScript.pex"
+crash: 		Flags: 0x00000000 "" FormID: 0x0001A4D7
+want: 		Flags: 0x00000000 "" FormID: 0x0001A4D7
+crash: 	[RSP+8] 0x7FF6 (char*) "C:\Users\Robin Hale\Documents\My Games\Fallout4\Saves\Save12.fos"
+want: 	[RSP+8] 0x7FF6 (char*) <text>
+
+# no context: the server's second pass
+ctx reset
+text: C:\Users\Robin Hale\Documents\My Games\Fallout4\F4SE\f4se.log
+want: <path>\F4SE\f4se.log
+text: C:\Users\Robin Hale is the profile
+want: <path>\Users\<user>
+text: <docs>\My Games\Fallout4\F4SE\f4se.log by <user>
+want: <docs>\My Games\Fallout4\F4SE\f4se.log by <user>
+
+# save names (a saves folder after <docs>, a bare file name, Fallout 4's own pattern with the name in hex)
+text: <docs>\My Games\Fallout4\Saves\Piper.fos
+want: <docs>\My Games\Fallout4\Saves\<save>.fos
+text: D:\Backup\Fallout4\Saves\My Run 2.fos
+want: <path>\Saves\<save>.fos
+text: loading game Save3_0A1B2C3D_0_4E617465_Sanctuary_000123_20261115104218_10_1.fos done
+want: loading game <save>.fos done
+text: co-save "Piper.f4se" written
+want: co-save "<save>.f4se" written
+text: Fallout4.esm and Saves.ini stay
+want: Fallout4.esm and Saves.ini stay
+# labelled names
+text: Save name: Piper
+want: Save name: <save>
+text: Player name = Nora Hale
+want: Player name = <player>
+text: {"characterName":"Nate","level":10}
+want: {"characterName":"<player>","level":10}
+text: the player name is not set
+want: the player name is not set
+
+# short user names are whole words from 3 letters
+ctx reset
+ctx user=Bob
+ctx pc=AB
+text: Bob started the game; Bobcat.esp loaded
+want: <user> started the game; Bobcat.esp loaded
+text: AB is the PC name, too short to remove as a word
+want: AB is the PC name, too short to remove as a word
+
+# Vortex folder names with no spaces are not secrets
+text: <staging>\BakaFrameworkNG-43627-5-0-0-1727045731\F4SE\Plugins\BakaFramework.dll
+want: <staging>\BakaFrameworkNG-43627-5-0-0-1727045731\F4SE\Plugins\BakaFramework.dll
+text: ModExplorerMenuFallout4AE-82512-1-2-3-1730000000
+want: ModExplorerMenuFallout4AE-82512-1-2-3-1730000000
+text: apikey-like Zq8Xk2LmP0wR7tYb3NcV5hJ9sD4fG6aE1uI
+want: apikey-like <secret>

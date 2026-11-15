@@ -37,12 +37,18 @@ namespace
 			if (s.environment)
 				Vitals::Guarded("environment", Vitals::ReportEnvironment);
 			// Before the game reads its .esm/.esp files: a load order that is about to crash can still be reported.
+			// opt-in share pack: the previous session's files, even if this launch never reaches the menu. With the
+			// doctor on, RunDoctor starts it after the report is written and BEFORE the start-up box, because "Stop game"
+			// ends the process and the pack would never be written.
 			if (s.doctor)
 				Vitals::Guarded("doctor", Vitals::RunDoctor);
+			else
+				Vitals::Guarded("share_pack", [] { Vitals::WriteSharePack("start"); });
 			break;
 		case M::kGameDataReady:
 			if (s.addressCheck)
 				Vitals::Guarded("address_check", Vitals::CheckAddresses);
+			Vitals::Guarded("share_pack", [] { Vitals::WriteSharePack("main_menu"); });
 			// Deferred to the game's next task tick: plugins that loaded after Vitals get this same message after us, and
 			// some register their Papyrus natives in it.
 			if (s.papyrusNatives) {
@@ -84,17 +90,24 @@ namespace
 		static std::once_flag once;
 		std::call_once(once, [&]() {
 			F4SE::Init(a_f4se, { .logName = "Vitals", .hook = false });  // passive: no hooks, ever
-			Vitals::LoadSettings();
-			Vitals::OpenReport();
-			Vitals::InitBreadcrumbs();
-			Vitals::Crumb("Vitals", "load");
-			Vitals::Emit("start", Vitals::Json()
-				.Str("vitals_version", F4SE::GetPluginVersion().string())
-				.Bool("papyrus_natives", Vitals::GetSettings().papyrusNatives)
-				.Bool("layout_probes", Vitals::GetSettings().layoutProbes)
-				.Bool("doctor", Vitals::GetSettings().doctor));
-			if (const auto msg = F4SE::GetMessagingInterface())
-				msg->RegisterListener(OnMessage);
+			// Each step on its own: a file that cannot be read must not stop the rest, or reach F4SE.
+			Vitals::Guarded("settings", Vitals::LoadSettings);
+			Vitals::Guarded("open_report", Vitals::OpenReport);
+			Vitals::Guarded("breadcrumbs", [] {
+				Vitals::InitBreadcrumbs();
+				Vitals::Crumb("Vitals", "load");
+			});
+			Vitals::Guarded("start", [] {
+				Vitals::Emit("start", Vitals::Json()
+					.Str("vitals_version", F4SE::GetPluginVersion().string())
+					.Bool("papyrus_natives", Vitals::GetSettings().papyrusNatives)
+					.Bool("layout_probes", Vitals::GetSettings().layoutProbes)
+					.Bool("doctor", Vitals::GetSettings().doctor));
+			});
+			Vitals::Guarded("listener", [] {
+				if (const auto msg = F4SE::GetMessagingInterface())
+					msg->RegisterListener(OnMessage);
+			});
 			isInit = true;
 		});
 		return isInit;

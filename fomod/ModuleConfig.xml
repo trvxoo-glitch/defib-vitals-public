@@ -13,7 +13,7 @@
 				<group name="Who is this install for?" type="SelectExactlyOne">
 					<plugins order="Explicit">
 						<plugin name="Player (recommended)">
-							<description>Plugin doctor, environment report, address check and crash breadcrumbs. A message box appears at start-up only when something new needs attention (a problem that may crash the game, or an F4SE plugin that is not running). The full report is in Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt.
+							<description>Plugin doctor, environment report, address check and crash breadcrumbs. A message box appears at start-up while something needs attention (a problem that may crash the game, or an F4SE plugin that is not running); its Don't show button silences the plugins it listed. The full report is in Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt.
 
 Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.</description>
 							<files>
@@ -25,6 +25,30 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 							<description>Everything in Player, plus the developer options: a list of every Papyrus native function and the DLL that registered it, and the engine layout probes. Logs are larger and start-up is slightly slower. Use this when you write or port F4SE plugins.</description>
 							<files>
 								<folder source="11 Settings - Developer" destination="" />
+							</files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+					</plugins>
+				</group>
+			</optionalFileGroups>
+		</installStep>
+		<installStep name="Help improve Vitals">
+			<optionalFileGroups order="Explicit">
+				<group name="Help improve Vitals (optional)" type="SelectExactlyOne">
+					<plugins order="Explicit">
+						<plugin name="No thanks">
+							<description>Vitals keeps everything on your PC, as always. You can change your mind later: reinstall and pick the other option, or set bSharePack=1 in Vitals.ini.</description>
+							<files>
+								<folder source="21 Share - No" destination="" />
+							</files>
+							<typeDescriptor><type name="Recommended" /></typeDescriptor>
+						</plugin>
+						<plugin name="Yes, help improve Vitals">
+							<description>Vitals saves a log pack (Vitals-Share.zip) on your PC each launch, with your user name, PC name, save names, emails, IP addresses, keys and private paths scrubbed out. Vitals never sends it.
+
+To help: join https://discord.gg/XghtBZUFNW, press Send my pack, and drag Vitals-Share.zip (it is in Documents\My Games\Fallout4\F4SE\Vitals) into the private channel. Only the maintainer can see it. Full details: https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default</description>
+							<files>
+								<folder source="20 Share - Yes" destination="" />
 							</files>
 							<typeDescriptor><type name="Optional" /></typeDescriptor>
 						</plugin>

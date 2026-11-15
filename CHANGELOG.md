@@ -1,15 +1,98 @@
 # Vitals changelog
 
-All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed.
+All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed. Dates are
+2026. Newest first: 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
 
-## 0.3.2 (start-up box)
-Not yet tested in game.
+## 0.4.0 (2026-11-15: share pack, better evidence, Copy report)
+Tested in game 2026-11-15: 1.11.240 with A StoryWealth through Vortex (709 active plugins, 71 DLLs in `Data\F4SE\Plugins`,
+58 running), several launches to the main menu (pressing **Stop game** at the start-up box), with and without the share
+pack: no errors logged, start-up check 0.9 to 1.5 s (the scan for other copies of the 13 not-running DLLs: 0.2 s across
+1,041 mods), share pack written before the box and again at the main menu (19 files, 0.77 MB), nothing personal found
+in it. **Not tested in game:** 1.10.163 and 1.10.984 with this version, Mod Organizer 2 (instance choice, `modlist.txt`
+winner, the Overwrite advice: these run only under MO2 and are covered by unit tests), a save loaded with this build.
+
+**New**
+- **Optional share pack, off unless you choose it.** The installer has a second page, *Help improve Vitals*, with
+  **No thanks** selected. If you pick **Yes, help improve Vitals**, Vitals writes `Vitals-Share.zip` next to the report
+  each launch (a few seconds after the start-up report, while the box is open, and again at the main menu): its own
+  reports and logs, F4SE's logs, your load order, 22 named game INI settings, a short PC summary (Windows, CPU, cores,
+  RAM, GPU), up to 3 recent crash logs, a count-only summary of the Papyrus logs, and (with Vortex) which mod installed
+  each F4SE DLL. **Every file is scrubbed first:** your user name, PC name, emails, IP and MAC addresses, Steam ids,
+  Windows account ids, keys and tokens, Mod Organizer profile names, save names, character names and private folder
+  paths become placeholders, and text read from game memory in crash logs is removed. `scrub-report.txt` inside says
+  how many of each. **Vitals still has no network code:** you decide whether to send the zip, by dragging it into a
+  private channel in the Vitals Discord server (https://discord.gg/XghtBZUFNW) or attaching it to a GitHub issue. Turn
+  it off by reinstalling with **No thanks**, setting `bSharePack=0`, or changing `share-optin.txt` to `share=0` (the
+  next launch deletes the pack). Only a `share=1` line turns it on. Full list and reasons: `docs/PRIVACY_AND_SAFETY.md`.
+- **Copy report** button in the start-up box: copies the whole report to the clipboard and leaves the box open. The box
+  title is now "Vitals - <version>".
+- **Spot an older copy overwriting a mod.** For each plugin that is not running, the report shows the DLL's own file
+  version (to compare with the mod page) and which Vortex or MO2 mod's copy the game is using. A newer mod whose DLL is
+  overwritten by an older copy from another mod used to look exactly like an outdated mod. One TIP line at the end of
+  the warnings says how to check file conflicts in Vortex or MO2.
+- **Better answers without the mod page or a copy of the mod.** For a plugin that is not running, Vitals uses what is
+  already on your PC:
+  - **Other installed copies.** It looks through your Vortex staging folder or MO2 mods folder for another copy of
+    the same DLL and checks each one with the same F4SE rules. If one would run on your game (or, on Old-Gen, may run),
+    the report names that mod and tells you to make it win the file conflict. If none would, it says so: the mod itself
+    has no version for your game yet. Under MO2 it reads the instance that manages your Fallout 4 folder (other games'
+    instances are ignored) and its selected profile's `modlist.txt`, so "Installed by" is the mod that really wins. If
+    the DLL the game loads is not that mod's copy (MO2's Overwrite folder, or a file put in `Data` by hand), the report
+    says so and points at Overwrite. The scan has one 2-second limit and says when it was reached.
+  - **Your mod manager's update check.** Vortex and MO2 ask Nexus for each mod's newest version and save the answer on
+    your PC (Vortex: its state backups in `%APPDATA%\Vortex\temp\state_backups_full`; MO2: each mod's meta.ini). When
+    that answer is newer than the version you have, the report says so ("2.0-beta" is not newer than "2.0"). Vitals
+    itself still never goes online.
+  - **Compiler date check.** No DLL can be older than the linker that built it (Visual Studio 2017 to 2022 each have a
+    release date). A build date older than its own linker, or a file date reset by an archive, is no longer used as
+    proof of an Old-Gen mod. When the linker is newer than April 2024, the report says the DLL was built after the
+    Next-Gen update.
+- **Knowledge rules can name game versions** (`oldfile@NG,AE`). The old main-menu and font-file rules now apply only
+  to Next-Gen and Anniversary, where those files break; Old-Gen players no longer see them. The offline preflight
+  reads the same tags. New rule: Independent Weapon Facing (Old-Gen 1.10.163 only).
+- **Inbox for share packs** (in the repository, not in the mod): players drag the zip into a private ticket channel in
+  the Vitals Discord server; `tools/share_inbox.py pull-discord` downloads them with a read-only bot, and `summary`
+  counts not-running DLLs, crash locations and unbound Papyrus functions across installs (see `docs/DISCORD_INBOX.md`).
+
+**Fixed**
+- **Fairer wording for plugins F4SE skips, and a wrong build date.** A Nexus user reported a current mod flagged
+  "built 2020, outdated". Reproducible builds (`/Brepro`) store a hash where the build date goes, and it can look like
+  any date; Vitals now spots them (a type 16 debug entry) and uses the file date instead, saying it is weaker. The word
+  "outdated" is gone: the report says that if the file is already the newest on its mod page, the author has not
+  released a version for your game yet and nothing is wrong with your setup.
+- **Start-up safety.** Every start-up step and every doctor check runs on its own, so a file that cannot be read skips
+  only that step (the report says which), never the report or the box. Folder listings and file dates no longer use
+  calls that can throw. Running F4SE DLLs are no longer read from disk (a rule that looks for text inside DLLs searches
+  the copy already in memory, and only while the file it is about is missing).
+- **Old-file rules** ignore a date before Fallout 4's release (an archive's 1980 date), in game and in the preflight.
+- **f4se.log lines** are matched on the whole DLL name (`x.dll` no longer matches a line about `max.dll`).
+- **Vortex's `vortex.deployment.json`** is read correctly when a mod name contains `}` or `{`.
+- **Pack and installer details.** Both Papyrus logs are summed up, so the main-menu write keeps the previous session's
+  errors; "N older bytes left out" counts the file, not the cut text; long INI values (`SResourceArchiveList`) are read
+  in full; when `Vitals-Share.zip` is open in another program the new pack is saved as `Vitals-Share-new.zip` and the
+  summary says so; **No thanks** installs a `share=0` marker, so a reinstall that picks No turns an earlier Yes off
+  even when a mod manager merges files, and the package check enforces No as the pre-selected answer.
+- **Pack privacy** (from three outside code reviews): save names (`*.fos`, also Fallout 4's own save names, which carry
+  the character name in hex), labelled names (`Save name:`, `Player name =`, `"characterName":`), the Papyrus player
+  name in any sentence, crash-log quotes such as `"JohnSmith"` or `"Nate_2077"` (only file and script names and
+  EditorIDs stay), user names from 3 letters as whole words, and crash-log file names and `manifest.json` inside the zip
+  all go through the scrubber; Vortex folder names with no spaces are no longer mistaken for keys. The privacy page says
+  what the scrubber cannot catch and that the install id links packs from the same install.
+- **Inbox tool:** needs the ticket category id (it never reads the whole server), sends the bot token only to Discord's
+  API, downloads attachments only from Discord's file servers, and skips zips that unpack too large.
+- `Vitals.ini`: the `iPopupMode` comment describes 0.3.2's behaviour (the box shows every launch while it has
+  something to list).
+- Next-Gen 1.10.984: a player confirmed Vitals works (36 of 43 plugins running, 772-plugin load order).
+
+## 0.3.2 (2026-11-15: start-up box)
+Released without its own in-game test (the project owner chose to skip it); the box behaviour was then used in every
+0.4.0 test launch.
 - **The start-up box now shows on every launch until you press Don't show or fix the problem.** Before, pressing
   Continue marked the items as seen and the box stayed away next time. Now only **Don't show** silences plugins that
   are not running; problems that may crash the game always show. **Continue** and **Stop game** change nothing.
   `iPopupMode` 1 and 2 now behave the same. `popup_seen.txt` is no longer written or read and can be deleted.
 
-## 0.3.1 (code review fixes)
+## 0.3.1 (2026-11-15: code review fixes)
 Fixes from three outside code reviews of 0.3.0, then from three more reviews of build 40.
 Tested in game 2026-11-15: 1.11.240 with A StoryWealth (708 plugins, 59 of 72 F4SE DLLs running, saves loaded and saved, no crash, no new false warnings), 1.10.163 with the Address Library (clean, saves loaded and saved), 1.10.163 with the Address Library file missing and only Vitals installed (game reached the menu, the report named the missing file and skipped the address check), and "Don't show" for a skipped DLL with a space in its name (remembered across a restart). 1.10.980/984 is built but untested. A damaged-DLL file was not tried in game; a test of it runs in CI.
 
@@ -94,7 +177,7 @@ First round (reviews of 0.3.0):
 - Both test timers (`iExitAfterMenuSeconds`, `iExitAfterLoadSeconds`) can be set together. The doctor records how
   long it took (`ms`). Duplicate helpers moved to the shared header; stale comments and docs fixed.
 
-## 0.3.0 (plugin doctor)
+## 0.3.0 (2026-11-13: plugin doctor)
 Tested in game 2026-11-13: 1.11.240 with A StoryWealth (68 minutes, several saves, no crash; doctor listed the 20
 plugins F4SE silently skips; start-up box and its three buttons) and 1.10.163 near-vanilla (clean, 0 problems, address
 check 1,487 match, BSTimer lastTime 0x18 OK). 1.10.980/984 is built but untested.
@@ -123,7 +206,7 @@ check 1,487 match, BSTimer lastTime 0x18 OK). 1.10.980/984 is built but untested
   building, maintaining, history.
 - Removed `tools/f4se_log_check.py` (unused; `defib_logs.py` covers it). Stage 0 notes were later removed from the repository.
 
-## 0.2.3 (Stage 0 final)
+## 0.2.3 (2026-11-12: Stage 0 final)
 Tested in game: 1.11.240 (F4SE 0.7.9) and 1.10.163 (F4SE 0.6.23) before release; the tag is pushed only after both pass.
 - **Local baselines.** Expected bytes for a build can come from `My Games\Fallout4\F4SE\Vitals\baselines\<RT>-<list>.txt`,
   outside the game folder, so updating Vitals never wipes them. `bCaptureBaseline=1` writes them there.
@@ -146,15 +229,15 @@ Known issue: "Hooked functions by plugin" also counts functions that start with 
 own stubs into Fallout4.exe, MSVCR110.dll, d3d11.dll), and "?" means a trampoline outside any DLL, which is how
 Addictol hooks. Cosmetic; fixed in the next version.
 
-## 0.2.2
+## 0.2.2 (2026-11-12)
 - `bCaptureBaseline`: write the bytes seen in memory as a baseline (for the encrypted Steam 1.10.163 exe).
 
-## 0.2.1
+## 0.2.1 (2026-11-11)
 - BSTimer probe recognises a millisecond counter; confirmed `lastTime` at 0x20 on 1.11.240.
 
-## 0.2.0
+## 0.2.0 (2026-11-11)
 - Hook detection (jump at function start, owner module), baselines from the exe, `differs`, timeline and
   `status.json`, test-rig auto-exit, Papyrus natives with parameter types, layout probes, smoke test script.
 
-## 0.1.0
+## 0.1.0 (2026-11-10)
 - Environment report, address check, breadcrumbs, log analyzer.

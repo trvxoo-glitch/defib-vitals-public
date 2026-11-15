@@ -88,12 +88,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: C++ rules test (F4SE loader rules shared with f4se_dll_scan.py, popup, names, file readers)
+      - name: C++ rules test (F4SE loader rules shared with f4se_dll_scan.py, popup, names, file readers, share-pack scrubber, zip)
         run: |
           g++ -std=c++20 -Wall -Wextra -Werror -I include tests/cpp/rules_test.cpp -o rules_test
           ./rules_test tests/loader_cases.txt
           # the same tests under AddressSanitizer/UBSan: the PE, Address Library and TES4 fuzz cases must not read out of bounds
           g++ -std=c++20 -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-sanitize-recover=all -I include tests/cpp/rules_test.cpp -o rules_test_asan
           ./rules_test_asan tests/loader_cases.txt
-      - name: Unit tests (log analyzer, preflight, FOMOD package, address generator, loader cases)
+      - name: Unit tests (log analyzer, preflight, FOMOD package, address generator, loader cases, share inbox)
         run: python -m unittest discover -s tests -v

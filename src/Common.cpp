@@ -69,6 +69,7 @@ namespace Vitals
 		g_settings.doctor = get(L"bDoctor", 1) != 0;
 		g_settings.popupMode = static_cast<std::uint32_t>(std::clamp(get(L"iPopupMode", 1), 0, 2));
 		g_settings.keepSessions = static_cast<std::uint32_t>(std::clamp(get(L"iKeepSessions", 5), 0, 50));
+		g_settings.sharePack = std::clamp(get(L"bSharePack", -1), -1, 1);
 	}
 
 	// ---------------- paths ----------------
@@ -198,11 +199,11 @@ namespace Vitals
 			if (const auto keep = GetSettings().keepSessions; keep > 0) {
 				const auto hist = dir / L"history";
 				std::filesystem::create_directories(hist, ec);
-				const auto when = std::chrono::clock_cast<std::chrono::system_clock>(std::filesystem::last_write_time(cur, ec));
-				const auto name = std::format("Vitals-{:%Y%m%d-%H%M%S}.jsonl", std::chrono::floor<std::chrono::seconds>(when));
+				const auto when = FileTimeToSys(std::filesystem::last_write_time(cur, ec)).value_or(std::chrono::sys_seconds{});
+				const auto name = std::format("Vitals-{:%Y%m%d-%H%M%S}.jsonl", when);
 				std::filesystem::copy_file(cur, hist / name, std::filesystem::copy_options::overwrite_existing, ec);
 				std::vector<std::filesystem::path> old;
-				for (const auto& e : std::filesystem::directory_iterator(hist, ec))
+				for (const auto& e : ListDir(hist))
 					if (e.path().extension() == L".jsonl")
 						old.push_back(e.path());
 				std::ranges::sort(old);  // names sort by date
@@ -419,6 +420,32 @@ namespace Vitals
 		if (!d.info.usable)
 			return std::nullopt;
 		return Formats::AddressLib::Find(d.bytes, d.info.count, a_id);
+	}
+
+	std::vector<std::uint8_t> ReadBytes(const std::filesystem::path& a_file, std::size_t a_max)
+	{
+		std::vector<std::uint8_t> data;
+		std::ifstream             in(a_file, std::ios::binary);
+		if (!in)
+			return data;
+		std::error_code ec;
+		const auto      size = std::filesystem::file_size(a_file, ec);
+		data.resize(static_cast<std::size_t>(std::min<std::uintmax_t>(ec ? 0 : size, a_max)));
+		in.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size()));
+		data.resize(static_cast<std::size_t>(in.gcount()));
+		return data;
+	}
+
+	std::vector<std::filesystem::directory_entry> ListDir(const std::filesystem::path& a_dir, std::size_t a_max)
+	{
+		// The range-for form of directory_iterator throws when a step fails part way (a folder removed while it is
+		// read, a network drive dropping). This form only stops.
+		std::vector<std::filesystem::directory_entry> out;
+		std::error_code ec;
+		std::filesystem::directory_iterator it(a_dir, std::filesystem::directory_options::skip_permission_denied, ec);
+		for (const std::filesystem::directory_iterator end; !ec && it != end && out.size() < a_max; it.increment(ec))
+			out.push_back(*it);
+		return out;
 	}
 
 	std::optional<std::chrono::sys_seconds> FileTimeToSys(std::filesystem::file_time_type a_t)

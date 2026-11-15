@@ -11,11 +11,16 @@ Layout of the release archive (the zip CI publishes is this folder's contents):
   00 Core/F4SE/Plugins/Vitals/knowledge/      plugin doctor rules
   10 Settings - Player/F4SE/Plugins/Vitals.ini       default settings (dist/.../Vitals.ini as is)
   11 Settings - Developer/F4SE/Plugins/Vitals.ini    same file with the developer options on
+  20 Share - Yes/F4SE/Plugins/Vitals/share-optin.txt  share pack marker, "share=1" (installer page 2, not the default)
+  21 Share - No/F4SE/Plugins/Vitals/share-optin.txt   the same file with "share=0" (the default), so a reinstall that
+                                                       picks No replaces an earlier Yes even when files are merged
   Docs/                                        README, user guide, troubleshooting, changelog, licences
 Manual install: copy the contents of "00 Core" and of ONE settings folder into the game's Data folder.
 
 `check` fails when a folder or file named in ModuleConfig.xml is missing, when the two info.xml versions
-disagree with xmake.lua, or when a settings folder has no Vitals.ini. Standard library only.
+disagree with xmake.lua, when a settings folder has no Vitals.ini, or when the share-pack marker is wrong: "share=1"
+anywhere but "20 Share - Yes", a marker anywhere but the two share folders, or "No thanks" not the pre-selected
+option (sharing must never be on without the player choosing it). Standard library only.
 """
 import argparse
 import os
@@ -27,6 +32,20 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUG = os.path.join("F4SE", "Plugins")
 DEVELOPER = {"bPapyrusNatives": "1", "bLayoutProbes": "1"}
+SHARE_FOLDER = "20 Share - Yes"
+SHARE_NO_FOLDER = "21 Share - No"
+SHARE_MARKER = "share-optin.txt"
+# Vitals reads the share= line: only "share=1" turns the pack on (src/Share.cpp SharePackEnabled).
+SHARE_TEXT = """share=1
+Vitals share pack: ON. You chose this in the installer ("Help improve Vitals").
+Vitals writes Vitals-Share.zip next to Vitals-Report.txt (Documents\\My Games\\Fallout4\\F4SE\\Vitals) each
+session, with personal details scrubbed out. Vitals never sends it: you decide whether to share it.
+To turn it off, change the first line to share=0, delete this file, or set bSharePack=0 in Vitals.ini.
+Vitals then deletes the pack at the next launch.
+"""
+SHARE_NO_TEXT = """share=0
+Vitals share pack: OFF. You chose "No thanks" in the installer. Vitals keeps everything on your PC and makes no pack.
+"""
 DOCS = ["README.md", "CHANGELOG.md", "AI_DISCLOSURE.md", "LICENSE", "EXCEPTIONS",
         "docs/USER_GUIDE.md", "docs/TROUBLESHOOTING.md", "docs/FAQ.md", "docs/PRIVACY_AND_SAFETY.md", "docs/CONTRIBUTING.md",
         "docs/FILE_FORMATS.md", "docs/ARCHITECTURE.md", "docs/BUILDING.md", "docs/MAINTAINING.md", "docs/HISTORY.md", "docs/ROADMAP.md"]
@@ -72,6 +91,11 @@ def build(dll, out):
         os.makedirs(d)
         with open(os.path.join(d, "Vitals.ini"), "w", encoding="utf-8", newline="\r\n") as f:
             f.write(text)
+    for folder, text in ((SHARE_FOLDER, SHARE_TEXT), (SHARE_NO_FOLDER, SHARE_NO_TEXT)):
+        share = os.path.join(out, folder, PLUG, "Vitals")
+        os.makedirs(share)
+        with open(os.path.join(share, SHARE_MARKER), "w", encoding="utf-8", newline="\r\n") as f:
+            f.write(text)
     os.makedirs(os.path.join(out, "fomod"))
     v = version()
     info = open(os.path.join(ROOT, "fomod", "info.xml"), encoding="utf-8").read()
@@ -108,11 +132,60 @@ def check(pkg):
             errors.append(f"settings folder '{s}' has no {PLUG}\\Vitals.ini")
     if not os.path.isfile(os.path.join(pkg, "00 Core", PLUG, "Vitals.dll")):
         errors.append("00 Core has no Vitals.dll")
+    errors += check_share(pkg, tree)
     m = ET.parse(info).getroot().find("Version")
     v = version()
     if m is None or m.text != v or m.get("MachineVersion") != v:
         errors.append(f"fomod/info.xml version is not {v} (xmake.lua)")
     return report(errors, len(sources))
+
+
+def share_on(path):
+    """What Vitals reads: on only with a "share=1" line (src/Share.cpp SharePackEnabled)."""
+    for ln in open(path, encoding="utf-8", errors="replace").read().splitlines():
+        if ln.strip().lower().replace(" ", "") == "share=1":
+            return True
+    return False
+
+
+def check_share(pkg, tree):
+    """Sharing must never be on unless the player picked Yes: the share=1 marker only in the Yes folder, the share=0
+    marker in the No folder, No pre-selected and listed first, Yes never pre-selected."""
+    errors = []
+    allowed = {f"{SHARE_FOLDER}/F4SE/Plugins/Vitals/{SHARE_MARKER}", f"{SHARE_NO_FOLDER}/F4SE/Plugins/Vitals/{SHARE_MARKER}"}
+    for dirpath, _dirs, files in os.walk(pkg):
+        for f in files:
+            if f.lower() == SHARE_MARKER:
+                rel = os.path.relpath(os.path.join(dirpath, f), pkg).replace(os.sep, "/")
+                if rel not in allowed:
+                    errors.append(f"share-pack marker found outside the two share folders: {rel}")
+    yes = os.path.join(pkg, SHARE_FOLDER, PLUG, "Vitals", SHARE_MARKER)
+    no = os.path.join(pkg, SHARE_NO_FOLDER, PLUG, "Vitals", SHARE_MARKER)
+    if not os.path.isfile(yes) or not share_on(yes):
+        errors.append(f"{SHARE_FOLDER} has no {SHARE_MARKER} with share=1")
+    if not os.path.isfile(no) or share_on(no):
+        errors.append(f"{SHARE_NO_FOLDER} has no {SHARE_MARKER}, or it says share=1")
+    group = None
+    for g in tree.iter("group"):
+        if any(fd.get("source") in (SHARE_FOLDER, SHARE_NO_FOLDER) for fd in g.iter("folder")):
+            group = g
+    if group is None:
+        return errors + ["ModuleConfig.xml has no share-pack group"]
+    plugins = list(group.iter("plugin"))
+
+    def kind(p):
+        t = p.find("typeDescriptor/type")
+        return t.get("name") if t is not None else "unset"
+
+    def installs(p, folder):
+        return any(fd.get("source") == folder for fd in p.iter("folder"))
+
+    if not plugins or not installs(plugins[0], SHARE_NO_FOLDER) or kind(plugins[0]) != "Recommended":
+        errors.append(f"the first share-pack option must install '{SHARE_NO_FOLDER}' and be Recommended (pre-selected)")
+    for p in plugins:
+        if installs(p, SHARE_FOLDER) and kind(p) != "Optional":
+            errors.append(f"the share-pack Yes option must be Optional (never pre-selected), not {kind(p)}")
+    return errors
 
 
 def report(errors, n=0):

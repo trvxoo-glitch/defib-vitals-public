@@ -23,6 +23,8 @@ How the plugin is put together, so it can be changed safely years from now.
    goes to `Vitals.jsonl`.
 6. **Evidence-based rules.** Doctor rules come from findings confirmed in game, dated, with the build.
 7. **No personal data.** Paths are redacted (`Redact`) before anything is written.
+8. **No network code.** Vitals never sends anything. The opt-in share pack is a file the player chooses to send;
+   everything in it passes the scrubber (`include/Vitals/Scrub.h`), and the list of files is fixed in `Share.cpp`.
 
 ## Start-up order
 
@@ -30,8 +32,8 @@ How the plugin is put together, so it can be changed safely years from now.
 | --- | --- | --- |
 | `F4SEPlugin_Query` (OG) / `F4SEPlugin_Version` (NG/AE) | Loader decides whether to load Vitals | `res/vitals/commonlibf4-plugin.cpp.in`, `main.cpp` |
 | `F4SEPlugin_Load` | `LoadSettings`, `OpenReport` (rotate history), `InitBreadcrumbs`, `start` record, register message listener | `main.cpp`, `Common.cpp`, `Breadcrumbs.cpp` |
-| `kPostPostLoad` (all F4SE plugins loaded, before the game reads plugins) | `ReportEnvironment`, then `RunDoctor` (report + message box) | `Environment.cpp`, `Doctor.cpp` |
-| `kGameDataReady` (data loaded, main menu next) | `CheckAddresses` (adds the address section to the report; skipped with `address_check_unavailable` when the Address Library is not usable), `RunLayoutProbes`; `ListPapyrusNatives` one task tick later, after every plugin's own `kGameDataReady` handler | `Addresses.cpp`, `Natives.cpp`, `Probes.cpp` |
+| `kPostPostLoad` (all F4SE plugins loaded, before the game reads plugins) | `ReportEnvironment`, then `RunDoctor` (report, then `WriteSharePack("start")` on a background thread when opted in, then the message box: "Stop game" ends the process, so the pack is started before the box) | `Environment.cpp`, `Doctor.cpp`, `Share.cpp` |
+| `kGameDataReady` (data loaded, main menu next) | `CheckAddresses` (adds the address section to the report; skipped with `address_check_unavailable` when the Address Library is not usable), `WriteSharePack("main_menu")` when opted in, `RunLayoutProbes`; `ListPapyrusNatives` one task tick later, after every plugin's own `kGameDataReady` handler | `Addresses.cpp`, `Natives.cpp`, `Probes.cpp` |
 | `kPostLoadGame` / `kNewGame` | pointer re-check, probes, `session` record | `Addresses.cpp`, `Probes.cpp` |
 | every message | `MarkPhase` (`phase` record, `status.json`), optional test-rig exit | `Status.cpp` |
 
@@ -47,7 +49,13 @@ and a message box there appears before a load-order crash at the main menu.
 | `src/main.cpp` | Entry points and the F4SE message listener |
 | `src/Common.cpp` | Settings, output folder, `Emit` (jsonl), `Summary`, `Json` builder, `Redact`, `SafeRead`, module lookup by address, history rotation |
 | `src/Environment.cpp` | Game build, F4SE version, every DLL with its F4SE data and whether it is in the process |
-| `src/Doctor.cpp` | Plugin doctor: PE parsing, plain-language reasons (`Explain`), f4se.log lines, knowledge rules, load order and masters, report, message box |
+| `src/Doctor.cpp` | Plugin doctor: PE parsing, plain-language reasons (`Explain`), f4se.log lines, knowledge rules (with per-runtime tags), load order and masters, report, message box (with Copy report) |
+| `src/ModScan.cpp` | What Vortex or MO2 knows about the not-running DLLs: the deploying mod, other installed copies, the mod manager's update check (one bounded pass) |
+| `src/Share.cpp` | Opt-in share pack: picks the files, builds the scrub context (known folders, user and PC name, Vortex staging), summaries, `Vitals-Share.zip`, the report's share section |
+| `include/Vitals/Scrub.h` | The share-pack scrubber, plain C++20. Tested by `tests/cpp/rules_test.cpp` with `tests/scrub_cases.txt`; the share packs are scrubbed once, by this code, before the zip is written |
+| `include/Vitals/Share.h` | Share-pack summaries that need no game: Papyrus log counts, Vortex manifest to DLL sources, breadcrumbs as text, the INI allowlist, size caps |
+| `include/Vitals/Zip.h` | Stored-only zip writer (CRC-32) |
+| `tools/share_inbox.py` | Downloads packs from the Discord server (maintainers) and counts not-running DLLs, crash locations and unbound natives across installs |
 | `include/Vitals/Rules.h` | The parts that need no game, plain C++20: F4SE loader rules (`Loader::Check`), plugin-name decoding, INI values, return-stub detection, popup decision and key files, the real load order, UTF-8-safe cuts, user-folder redaction. Tested by `tests/cpp/rules_test.cpp` |
 | `include/Vitals/Formats.h` | Readers for files on disk, plain C++20: PE exports and `F4SEPlugin_Version` data, the Address Library table, TES4 plugin headers. Every bound is checked by subtraction, so a crafted size or offset cannot wrap. Fuzzed and tested by `tests/cpp/rules_test.cpp` (CI also runs it under AddressSanitizer) |
 | `src/Addresses.cpp` | Address check: resolve IDs, read bytes, compare with list/baseline, jump decoding and hook owners (`ResolveOwner`), singleton classes, baseline capture |
@@ -78,9 +86,30 @@ and a message box there appears before a load-order crash at the main menu.
    CommonLib blocks) is a problem too, because F4SE still loads plugins that then show an error and close the game.
 5. **Build date.** For plugins with no `F4SEPlugin_Version` data, the COFF build timestamp (file date if the
    timestamp is zero or implausible, as in reproducible builds) is compared with the Next-Gen update (2024-04-25):
-   before = outdated, after = may still be maintained (and the advice points at the mod page). Issues get a `group`
+   before = made for Old-Gen, after = may still be maintained (and the advice points at the mod page). Issues get a `group`
    so the message box can list them together. A DLL that is not running is a `warning` (the mod does not work);
    `problem` is kept for what may crash the game.
+   The build date is checked against the linker version in the PE header (`Formats::LinkerFloor`: no DLL predates the
+   Visual Studio release that made it). A date earlier than that is ignored; a linker released after April 2024 alone
+   puts the DLL in the "after" group.
+   Then the mod manager's own data (`src/ModScan.cpp`, parsing in `include/Vitals/ModManagers.h`), once for all the
+   not-running DLLs together, with one 2-second deadline (`ModScan::Result::deadline`) shared by the folder walk, the
+   byte compares, the Vortex state backup and the doctor's reading of other copies (16 MB each), because it runs
+   before the start-up box. Running DLLs are never read from disk: a `needs` rule whose file is missing searches the
+   loaded image. Under MO2, when the winning mod's copy is not the loaded file, it is kept apart
+   (`DllCopies::shadowed`) and the advice points at Overwrite. Under MO2
+   (`usvfs_x64.dll` loaded) the portable `ModOrganizer.ini` next to it, or else the instance in
+   `%LOCALAPPDATA%\ModOrganizer` whose `gamePath` is this game folder (the newest if several), gives the mods folder
+   and the selected profile; its `modlist.txt` (first line wins) says which mod's copy the game sees. Otherwise
+   Vortex's `vortex.deployment.json` gives the staging folder and the deploying mod. One walk lists each mod's
+   `F4SE\Plugins` folder; copies that are byte-identical to the deployed file are skipped, the others are read and
+   judged by `Loader::Check`. A copy that would run (or, on Old-Gen, may run) is added to the advice ("make that mod
+   win the file conflict"); a knowledge rule's advice stays first.
+   The mod manager's update check is reported when its `newestVersion` is newer than `version`: MO2's `meta.ini`, or
+   for Vortex `persistent.mods.fallout4.<id>.attributes` in the newest `%APPDATA%\Vortex\temp\state_backups_full\*.json`
+   (its full state backup; the live state is a LevelDB database), matched by `installationPath`. All of this only reads files, and only
+   for DLLs that are not running. A Vortex state backup over 64 MB is skipped. Each doctor check runs on its own, so
+   one that stops early leaves a line in the report and the others, the report and the box still run.
 6. **Load order.** Base masters, then `Fallout4.ccc` entries present in Data, then active (`*`) lines of
    `%LOCALAPPDATA%\Fallout4\plugins.txt`. Under MO2 the virtual file system makes the profile's file appear
    there. Each plugin's TES4 header gives the master flag (0x1), the light flag (0x200) and the `MAST` list. Masters

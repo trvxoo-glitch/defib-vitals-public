@@ -2,7 +2,11 @@
 //   g++ -std=c++20 -I include tests/cpp/rules_test.cpp -o rules_test && ./rules_test tests/loader_cases.txt
 // CI runs it (build.yml, analyzer job) and tests/test_tools.py runs it when a compiler is installed.
 #include "Vitals/Formats.h"
+#include "Vitals/ModManagers.h"
 #include "Vitals/Rules.h"
+#include "Vitals/Scrub.h"
+#include "Vitals/Share.h"
+#include "Vitals/Zip.h"
 
 #include <cstdio>
 #include <cstring>
@@ -200,6 +204,33 @@ static void PeTests()
 	const auto good = MakePe({ "F4SEPlugin_Load", "F4SEPlugin_Query" });
 	auto       pe = F::ParsePe(good);
 	CHECK(pe.ok && pe.exports.size() == 2 && pe.exports.contains("F4SEPlugin_Query") && pe.timestamp == 0x66000000);
+	CHECK(!pe.reproducible);
+	CHECK(F::FileVersion(good).empty());
+	{
+		auto d = good;
+		const std::size_t at = 0x1380;  // inside the section, after the export names
+		Put<std::uint32_t>(d, at, 0xFEEF04BD);
+		Put<std::uint32_t>(d, at + 4, 0x00010000);
+		Put<std::uint32_t>(d, at + 8, (5u << 16) | 0);   // 5.0
+		Put<std::uint32_t>(d, at + 12, (2u << 16) | 7);  // .2.7
+		CHECK(F::FileVersion(d) == "5.0.2.7");
+		Put<std::uint32_t>(d, at + 4, 0x00020000);  // not a VS_FIXEDFILEINFO
+		CHECK(F::FileVersion(d).empty());
+		std::vector<std::uint8_t> cut(d.begin(), d.begin() + at + 10);  // signature at the very end: no read past it
+		CHECK(F::FileVersion(cut).empty());
+	}
+	{
+		// a /Brepro build: debug directory (data directory 6) with an entry of type 16; its timestamp is a hash, not a date
+		auto d = good;
+		Put<std::uint32_t>(d, 0x98 + 160, 0x13A0);  // debug directory RVA
+		Put<std::uint32_t>(d, 0x98 + 164, 28);      // size: one entry
+		Put<std::uint32_t>(d, 0x400 + (0x13A0 - 0x1000) + 12, 16);
+		CHECK(F::ParsePe(d).reproducible);
+		Put<std::uint32_t>(d, 0x400 + (0x13A0 - 0x1000) + 12, 2);  // CodeView: a normal build
+		CHECK(!F::ParsePe(d).reproducible);
+		Put<std::uint32_t>(d, 0x98 + 164, 0xFFFFFFFF);  // absurd size: ignored, no crash
+		CHECK(!F::ParsePe(d).reproducible);
+	}
 	// e_lfanew near 4 GB: 32-bit "peOff + 24" wrapped to a small number in build 40
 	for (const std::uint32_t bad : { 0xFFFFFFF0u, 0xFFFFFFFFu, 0xFFFFFFE8u, 0x7FFFFFFFu, 0x13FCu, 0x13FDu }) {
 		auto d = good;
@@ -350,6 +381,248 @@ static void LoadOrderTests()
 	CHECK(ActualLoadOrder(0, {}).empty());
 }
 
+// tests/scrub_cases.txt: the share-pack scrubber
+static int RunScrubCases(const std::string& a_path)
+{
+	std::ifstream in(a_path, std::ios::binary);
+	if (!in) {
+		std::cerr << "cannot open " << a_path << "\n";
+		return 1;
+	}
+	namespace S = Vitals::Scrub;
+	S::Context  ctx;
+	std::string line, input;
+	bool        crash = false;
+	int         n = 0, bad = 0;
+	while (std::getline(in, line)) {
+		if (!line.empty() && line.back() == '\r')
+			line.pop_back();
+		if (line.starts_with("ctx ")) {
+			const auto kv = line.substr(4);
+			if (kv == "reset")
+				ctx = {};
+			else if (kv.starts_with("user="))
+				ctx.user = kv.substr(5);
+			else if (kv.starts_with("pc="))
+				ctx.pc = kv.substr(3);
+			else if (kv.starts_with("domain="))
+				ctx.domain = kv.substr(7);
+			else if (kv.starts_with("root=")) {
+				const auto bar = kv.find('|');
+				ctx.roots.emplace_back(kv.substr(5, bar - 5), kv.substr(bar + 1));
+			}
+		} else if (line.starts_with("text: ") || line.starts_with("crash: ")) {
+			crash = line.starts_with("crash: ");
+			input = line.substr(crash ? 7 : 6);
+		} else if (line.starts_with("want: ")) {
+			S::Counts  counts;
+			const auto got = crash ? S::CrashLog(input, ctx, counts) : S::Text(input, ctx, counts);
+			++n;
+			if (got != line.substr(6)) {
+				std::cerr << "scrub case FAILED\n  in:   " << input << "\n  want: " << line.substr(6) << "\n  got:  " << got << "\n";
+				++bad;
+			}
+		}
+	}
+	std::cout << "scrub cases: " << n << " run, " << bad << " failed\n";
+	return (bad || n < 40) ? 1 : 0;
+}
+
+static void ScrubTests()
+{
+	namespace S = Vitals::Scrub;
+	S::Counts n;
+	const S::Context ctx{ "Robin Hale", "DESKTOP-4F7K2Q", "", { { "D:\\Games\\Fallout 4", "<game>" } } };
+	// idempotent: a second pass (the server's) changes nothing
+	const std::string once = S::Text("C:\\Users\\Robin Hale\\x\\y.txt robin@example.com 192.168.0.4 D:\\Games\\Fallout 4\\Data", ctx, n);
+	S::Counts         n2;
+	CHECK(S::Text(once, ctx, n2) == once);
+	CHECK(S::Text(once, {}, n2) == once);
+	CHECK(n2.empty());
+	CHECK(n["email"] == 1 && n["ip"] == 1 && n["folder"] == 1);
+	const auto report = S::Report(n);
+	CHECK(report.find("1  email addresses") != std::string::npos);
+	CHECK(report.find("robin") == std::string::npos);
+	// a common word as user name is not replaced everywhere
+	S::Counts n3;
+	CHECK(S::Text("Data\\F4SE", S::Context{ "Data", "", "", {} }, n3) == "Data\\F4SE");
+	CHECK(S::LooksRandom("Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRkdISUpLTE1O"));
+	CHECK(!S::LooksRandom("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"));
+	// fuzz: random bytes never crash and never grow without bound
+	std::mt19937 rng(7);
+	for (int k = 0; k < 2000; ++k) {
+		std::string s(static_cast<std::size_t>(rng() % 200), '\0');
+		for (auto& c : s)
+			c = "\\/:.-@\"' aZ09fF<>=_\n\t"[rng() % 22];
+		S::Counts f;
+		const auto out = S::CrashLog(s, ctx, f);
+		CHECK(out.size() <= s.size() * 8 + 16);
+	}
+}
+
+static void ZipTests()
+{
+	namespace Z = Vitals::Zip;
+	CHECK(Z::Crc32("") == 0);
+	CHECK(Z::Crc32("123456789") == 0xCBF43926u);
+	Z::Writer w(Z::DosTime::From(2026, 11, 15, 10, 42, 12));
+	CHECK(w.Add("manifest.json", "{}"));
+	CHECK(w.Add("crash/crash-1.log", "hello\n"));
+	const auto zip = w.Finish();
+	auto u32 = [&](std::size_t at) { return static_cast<std::uint32_t>(static_cast<unsigned char>(zip[at]) | static_cast<unsigned char>(zip[at + 1]) << 8 |
+		                                                               static_cast<unsigned char>(zip[at + 2]) << 16 | static_cast<std::uint32_t>(static_cast<unsigned char>(zip[at + 3])) << 24); };
+	CHECK(u32(0) == 0x04034b50u);
+	const auto eocd = zip.size() - 22;
+	CHECK(u32(eocd) == 0x06054b50u);
+	CHECK((static_cast<unsigned char>(zip[eocd + 10]) | static_cast<unsigned char>(zip[eocd + 11]) << 8) == 2);
+	const auto dir = u32(eocd + 16);
+	CHECK(u32(dir) == 0x02014b50u);
+	CHECK(zip.find("crash/crash-1.log") != std::string::npos);
+	CHECK(zip.find("hello\n") != std::string::npos);
+}
+
+static void ShareTests()
+{
+	namespace H = Vitals::Share;
+	CHECK(H::KeepTail("abc", 10) == "abc");
+	// a file read from byte 100: the count is of the file, plus the part line cut off
+	CHECK(H::FileTail("rest of a line\nnext\n", 100) == "[Vitals: 115 older bytes left out; the newest part is kept]\nnext\n");
+	CHECK(H::FileTail("whole\n", 0) == "whole\n");
+	const auto tail = H::KeepTail("line1\nline2\nline3\n", 8);
+	CHECK(tail.find("line3") != std::string::npos && tail.find("line1") == std::string::npos);
+	const std::string log =
+		"[11/15/2026 - 10:42:13AM] Papyrus log opened (PC-64)\n"
+		"[11/15/2026 - 10:42:14AM] error: Unbound native function \"GetSUPF4SEVersion\" in object \"SUP_F4SE\" -- function will not be bound.\n"
+		"[11/15/2026 - 10:42:14AM] error: Unbound native function \"GetSUPF4SEVersion\" in object \"SUP_F4SE\" -- function will not be bound.\n"
+		"[11/15/2026 - 10:42:15AM] Cannot open store for class \"MissingScript\", missing file?\n"
+		"[11/15/2026 - 10:42:16AM] error: Cannot call GetValue() on a None object, aborting function call\n"
+		"stack:\n"
+		"\t[Actor < (0001A4D7)>].WorkshopNPCScript.OnLoad() - \"WorkshopNPCScript.psc\" Line 12\n"
+		"[11/15/2026 - 10:42:17AM] error: Cannot call GetValue() on a None object, aborting function call\n"
+		"stack:\n"
+		"\t[Actor < (0002B5E8)>].WorkshopNPCScript.OnLoad() - \"WorkshopNPCScript.psc\" Line 12\n"
+		"[11/15/2026 - 10:42:18AM] warning: Property Name on script X attached to Nora Hale (00000014) cannot be bound\n";
+	const auto sum = H::PapyrusSummary(log);
+	CHECK(sum.find("2x  Unbound native function \"GetSUPF4SEVersion\" in object \"SUP_F4SE\"") != std::string::npos);
+	CHECK(sum.find("2x  Cannot call GetValue() on a None object, aborting function call  @ WorkshopNPCScript.OnLoad()") != std::string::npos);
+	CHECK(sum.find("MissingScript") != std::string::npos);
+	CHECK(sum.find("0001A4D7") == std::string::npos);
+	CHECK(sum.find("Nora") == std::string::npos);
+	CHECK(sum.find("attached to <player> (#) cannot be bound") != std::string::npos);
+	// the player's name in any sentence shape
+	CHECK(H::detail::HidePlayerName("[Actor <Nora Hale (00000014)>].X.Y()") == "[Actor <<player> (00000014)>].X.Y()");
+	CHECK(H::detail::HidePlayerName("Nate (00000014) is not in a workshop") == "<player> (00000014) is not in a workshop");
+	CHECK(H::detail::HidePlayerName("Cannot call X() on xXslayerXx (00000014)") == "Cannot call X() on <player> (00000014)");
+	CHECK(H::detail::HidePlayerName("Unable to bind Ann Marie Lee (00000014), then Bob (00000014)") ==
+		"Unable to bind <player> (00000014), then <player> (00000014)");
+	CHECK(H::detail::HidePlayerName("[Actor < (00000014)>]") == "[Actor < (00000014)>]");
+	CHECK(H::detail::HidePlayerName("no player here (0001A4D7)") == "no player here (0001A4D7)");
+	const std::string vortex = R"({"instance":"x","version":1,"stagingPath":"E:\\Vortex\\fallout4\\mods","files":[
+		{"relPath":"F4SE\\Plugins\\XDI.dll","source":"XDI-123-1-0","target":"","time":1},
+		{"relPath":"F4SE\\Plugins\\Sub\\nested.dll","source":"Other","time":2},
+		{"relPath":"textures\\a.dds","source":"Tex","time":3},
+		{"relPath":"F4SE/Plugins/Addictol.dll","source":"Addictol-84214-1-2","time":4}]})";
+	const auto v = H::ParseVortexManifest(vortex);
+	// a brace inside a string does not end the entry
+	const auto braces = H::ParseVortexManifest(R"({"stagingPath":"S","files":[{"relPath":"F4SE\\Plugins\\A.dll","note":"a } b","source":"Mod {A}"},{"relPath":"F4SE\\Plugins\\B.dll","source":"B"}]})");
+	CHECK(braces.dlls.size() == 2 && braces.dlls[0].second == "Mod {A}" && braces.dlls[1].second == "B");
+	CHECK(v.staging == "E:\\Vortex\\fallout4\\mods");
+	CHECK(v.dlls.size() == 2);
+	CHECK(v.dlls.size() == 2 && v.dlls[0].first == "Addictol.dll" && v.dlls[1].second == "XDI-123-1-0");
+	CHECK(H::DllSourcesText(v).find("XDI.dll | XDI-123-1-0") != std::string::npos);
+	// breadcrumbs: header + 2 entries of a 4-slot ring
+	std::string bin(64 + 4 * 128, '\0');
+	auto put32 = [&](std::size_t at, std::uint32_t x) { std::memcpy(bin.data() + at, &x, 4); };
+	auto put64 = [&](std::size_t at, std::uint64_t x) { std::memcpy(bin.data() + at, &x, 8); };
+	std::memcpy(bin.data(), "VTLB", 4);
+	put32(4, 1);
+	put32(8, 4);
+	put32(12, 128);
+	put64(64 + 128 * 1, 7);
+	std::memcpy(bin.data() + 64 + 128 + 24, "Vitals", 6);
+	std::memcpy(bin.data() + 64 + 128 + 64, "doctor", 6);
+	put64(64 + 128 * 3, 5);
+	std::memcpy(bin.data() + 64 + 384 + 24, "Port", 4);
+	std::memcpy(bin.data() + 64 + 384 + 64, "hook:A", 6);
+	const auto crumbs = H::BreadcrumbsText(bin);
+	CHECK(crumbs.find("5 | Port | hook:A\n7 | Vitals | doctor\n") != std::string::npos);
+	CHECK(H::BreadcrumbsText("short").find("not a Vitals") != std::string::npos);
+}
+
+static void RuntimeTagTests()
+{
+	std::string kind;
+	CHECK(RuleRuntimes("oldfile", "AE", kind) && kind == "oldfile");
+	CHECK(RuleRuntimes("oldfile@NG,AE", "AE", kind) && kind == "oldfile");
+	CHECK(RuleRuntimes("oldfile@ng,ae", "NG", kind));
+	CHECK(!RuleRuntimes("oldfile@NG,AE", "OG", kind));
+	CHECK(!RuleRuntimes("dll@OG", "AE", kind) && kind == "dll");
+	CHECK(!RuleRuntimes("dll@", "AE", kind));
+}
+
+static void ModManagerTests()
+{
+	namespace M = Vitals::ModManagers;
+	namespace F = Vitals::Formats;
+	// linker floor: 14.0 (lld-link) and other majors say nothing; 14.44 is VS 2022 17.14 (May 2025)
+	CHECK(F::LinkerFloor(14, 0).y == 0);
+	CHECK(F::LinkerFloor(9, 0).y == 0);
+	CHECK(F::LinkerFloor(14, 44).y == 2025 && F::LinkerFloor(14, 44).m == 5);
+	CHECK(F::LinkerFloor(14, 40).y == 2024 && F::LinkerFloor(14, 40).m == 5);  // after the April 2024 Next-Gen update
+	CHECK(F::LinkerFloor(14, 17).y == 2018);                                   // between table rows: the row below
+	CHECK(F::LinkerFloor(14, 99).y == 2025);                                   // newer than the table: its last row
+	// MO2 ini paths
+	CHECK(M::Mo2ModsDir("[Settings]\nbase_directory=@ByteArray(D:/MO2/FO4)\n", "C:\\inst") == "D:\\MO2\\FO4\\mods");
+	CHECK(M::Mo2ModsDir("[General]\ngameName=Fallout 4\n", "C:\\MO2") == "C:\\MO2\\mods");
+	CHECK(M::Mo2ModsDir("[Settings]\nmod_directory=%BASE_DIR%/stuff\n", "C:\\MO2") == "C:\\MO2\\stuff");
+	CHECK(M::Mo2ModsDir("", "").empty());
+	const auto meta = M::Mo2Meta("[General]\r\nmodid=43627\r\nversion=4.9.0\r\nnewestVersion=5.0.0\r\n[installedFiles]\r\n1\\modid=1\r\n");
+	CHECK(meta.version == "4.9.0" && meta.newest == "5.0.0" && meta.modId == "43627");
+	CHECK(M::NewerVersion("5.0.0", "4.9.0"));
+	CHECK(M::NewerVersion("1.10", "1.9"));
+	CHECK(!M::NewerVersion("1.9", "1.10"));
+	CHECK(!M::NewerVersion("5.0", "5.0.0"));
+	CHECK(!M::NewerVersion("5.0.0", "5.0"));
+	CHECK(M::NewerVersion("v2.1", "2.0"));
+	CHECK(!M::NewerVersion("", "1.0"));
+	CHECK(!M::NewerVersion("1.0", ""));
+	CHECK(!M::NewerVersion("2.0-beta", "2.0"));   // a pre-release is not newer than its release
+	CHECK(M::NewerVersion("2.0", "2.0-beta"));
+	CHECK(!M::NewerVersion("1.0.0-beta", "1.0.0"));
+	CHECK(!M::NewerVersion("1.0.0 RC2", "1.0"));
+	CHECK(M::NewerVersion("1.2b", "1.2a"));
+	CHECK(M::NewerVersion("1.2a", "1.2"));
+	CHECK(!M::NewerVersion("1.2", "1.2a"));
+	CHECK(!M::NewerVersion("1.0 fixed", "1.0"));      // text the numbers do not explain: not "newer"
+	CHECK(M::NewerVersion("2.1-beta", "2.0"));        // higher numbers win whatever the text
+	CHECK(!M::NewerVersion("Final", "1.0"));
+	CHECK(!M::NewerVersion("010", "10"));
+	// Qt's doubled backslashes, gamePath, the selected profile and its mod order
+	CHECK(M::Mo2Path("@ByteArray(D:\\\\Games\\\\MO2\\\\)", {}) == "D:\\Games\\MO2");
+	CHECK(M::Mo2GamePath("[General]\ngamePath=@ByteArray(D:\\\\Steam\\\\steamapps\\\\common\\\\Fallout 4)\n") == "D:\\Steam\\steamapps\\common\\Fallout 4");
+	CHECK(M::SameDir("D:\\Steam\\steamapps\\common\\Fallout 4\\", "d:/steam/steamapps/common/fallout 4"));
+	CHECK(!M::SameDir("D:\\Games\\Skyrim", "D:\\Games\\Fallout 4"));
+	CHECK(!M::SameDir("", ""));
+	CHECK(M::Mo2ProfileDir("[General]\nselected_profile=@ByteArray(Player)\n", "C:\\MO2") == "C:\\MO2\\profiles\\Player");
+	CHECK(M::Mo2ProfileDir("", "C:\\MO2") == "C:\\MO2\\profiles\\Default");
+	CHECK(M::Mo2ProfileDir("[Settings]\nprofiles_directory=%BASE_DIR%/p\n[General]\nselected_profile=X\n", "C:\\MO2") == "C:\\MO2\\p\\X");
+	const auto ml = M::Mo2ModList("# This file was automatically generated by Mod Organizer.\r\n+Winner\r\n-Off Mod\r\n*DLC: Far Harbor\r\n+Loser\r\n");
+	CHECK(ml.size() == 3 && ml[0].name == "Winner" && ml[0].enabled && !ml[1].enabled && ml[2].name == "Loser");
+	// Vortex full state backup: persistent.mods.<game>.<id>; other games, other keys and odd values are skipped
+	const auto vm = M::VortexStateMods(R"({"app":{"x":[1,2,{"a":null}]},"persistent":{"profiles":{},"mods":{
+		"skyrimse":{"1":{"installationPath":"Other","attributes":{"version":"1","newestVersion":"2"}}},
+		"fallout4":{
+		  "BakaFramework-43627-5-0-0":{"id":"x","state":"installed","installationPath":"BakaFramework 43627 5.0.0 2026-09-22T22-55Z arQOmDNId",
+		     "attributes":{"modId":43627,"version":"4.9.0","newestVersion":"5.0.0","name":"Baka \"F\" \u00e9","enabled":true,"x":[1.5e3,-2]}},
+		  "Plain":{"installationPath":"Plain","attributes":{"version":"1.0"}}}}}})");
+	CHECK(vm.size() == 2);
+	CHECK(vm.contains("bakaframework 43627 5.0.0 2026-09-22t22-55z arqomdnid"));
+	CHECK(vm.at("bakaframework 43627 5.0.0 2026-09-22t22-55z arqomdnid").newest == "5.0.0");
+	CHECK(vm.at("plain").version == "1.0" && vm.at("plain").newest.empty());
+	CHECK(M::VortexStateMods("{\"persistent\":{\"mods\":{\"fallout4\":{\"a\":{").empty());  // cut short: nothing, no crash
+	CHECK(M::VortexStateMods("").empty());
+}
+
 int main(int argc, char** argv)
 {
 	TextTests();
@@ -361,7 +634,20 @@ int main(int argc, char** argv)
 	KeyFileTests();
 	PlayerTextTests();
 	LoadOrderTests();
+	ScrubTests();
+	ZipTests();
+	ShareTests();
+	RuntimeTagTests();
+	ModManagerTests();
 	const int loader = argc > 1 ? RunLoaderCases(argv[1]) : 0;
+	// tests/scrub_cases.txt sits next to tests/loader_cases.txt
+	int scrub = 0;
+	if (argc > 1) {
+		std::string dir = argv[1];
+		const auto  slash = dir.find_last_of("/\\");
+		dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
+		scrub = RunScrubCases(dir + "scrub_cases.txt");
+	}
 	std::cout << (g_fail ? "unit checks FAILED: " : "unit checks ok") << (g_fail ? std::to_string(g_fail) : "") << "\n";
-	return (g_fail || loader) ? 1 : 0;
+	return (g_fail || loader || scrub) ? 1 : 0;
 }

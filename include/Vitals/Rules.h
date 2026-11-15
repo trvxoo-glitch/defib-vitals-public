@@ -11,6 +11,7 @@
 //  * Popup: which problems are new enough to open the start-up message box, and the key files that remember them.
 //  * Player text: UTF-8-safe cuts, and the Windows user name replaced only where it is a folder name in a path.
 //  * Load order: the order the game really loads plugins in (master-flagged ones first).
+//  * Knowledge rules: which runtimes a rule applies to ("oldfile@NG,AE").
 // File readers (PE, Address Library, plugin headers) are in Formats.h.
 
 #include <algorithm>
@@ -375,6 +376,29 @@ namespace Vitals::Rules
 			}
 		}
 		return out;
+	}
+
+	// ---------------------------------------------------------------- knowledge rules
+	// A rule's kind may name the runtimes it applies to: "oldfile@NG,AE" (OG = 1.10.163, NG = 1.10.980/984,
+	// AE = 1.11.x). a_kind gets the bare kind in lower case. Returns whether the rule applies to a_runtime. Vitals
+	// before 0.4.0 sees "oldfile@NG,AE" as an unknown kind and skips the rule, which is the safe reading.
+	inline bool RuleRuntimes(std::string_view a_kindField, std::string_view a_runtime, std::string& a_kind)
+	{
+		auto lower = [](std::string_view s) {
+			std::string out(s);
+			for (auto& c : out)
+				c = (c >= 'A' && c <= 'Z') ? static_cast<char>(c + 32) : c;
+			return out;
+		};
+		const auto at = a_kindField.find('@');
+		a_kind = lower(Trim(a_kindField.substr(0, at)));
+		if (at == std::string_view::npos)
+			return true;
+		const auto want = lower(a_runtime);
+		for (const auto& r : Split(a_kindField.substr(at + 1), ','))
+			if (!r.empty() && lower(r) == want)
+				return true;
+		return false;
 	}
 
 	// ---------------------------------------------------------------- load order

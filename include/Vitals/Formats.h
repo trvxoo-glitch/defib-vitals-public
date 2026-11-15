@@ -42,6 +42,8 @@ namespace Vitals::Formats
 	{
 		bool                                 ok{ false };
 		std::uint32_t                        timestamp{ 0 };  // COFF TimeDateStamp: when the DLL was built (0/garbage in reproducible builds)
+		bool                                 reproducible{ false };
+		std::uint8_t                         linkerMajor{ 0 }, linkerMinor{ 0 };  // optional header: the MSVC linker that built it  // a reproducible build (/Brepro): the timestamp is a hash, not a date
 		std::string                          error;
 		std::map<std::string, std::uint32_t> exports;  // name -> RVA
 		std::vector<PeSection>               sections;
@@ -59,6 +61,55 @@ namespace Vitals::Formats
 			}
 		}
 		return std::nullopt;
+	}
+
+	// The DLL's own file version (its VERSIONINFO resource), "1.2.3.4", or empty. Players compare it with the version on
+	// the mod page: an older number than the page shows means an older copy is installed (often another mod's).
+	inline std::string FileVersion(Bytes d)
+	{
+		static constexpr std::uint8_t kSig[4] = { 0xBD, 0x04, 0xEF, 0xFE };  // VS_FIXEDFILEINFO.dwSignature 0xFEEF04BD
+		for (std::size_t i = 0; i + 16 <= d.size(); ++i) {
+			if (d[i] != kSig[0] || d[i + 1] != kSig[1] || d[i + 2] != kSig[2] || d[i + 3] != kSig[3])
+				continue;
+			std::uint32_t strucVersion = 0, ms = 0, ls = 0;
+			if (!Get(d, i + 4, strucVersion) || !Get(d, i + 8, ms) || !Get(d, i + 12, ls) || strucVersion != 0x00010000)
+				continue;
+			if (!ms && !ls)
+				return {};
+			return std::to_string(ms >> 16) + "." + std::to_string(ms & 0xFFFF) + "." + std::to_string(ls >> 16) + "." + std::to_string(ls & 0xFFFF);
+		}
+		return {};
+	}
+
+	// The earliest day a DLL can have been built, from its linker version: each Visual Studio release ships a new
+	// linker (14.40 = VS 2022 17.10, May 2024). The build date inside a DLL can be wrong (reproducible builds put a hash
+	// there, some tools zero it), but no DLL can predate the linker that made it. Returns {year, month, day}, or zeros
+	// when the version says nothing useful (14.0 is also what clang's lld-link writes, so it is not used).
+	struct Ymd
+	{
+		int      y{ 0 };
+		unsigned m{ 0 }, d{ 0 };
+	};
+
+	inline Ymd LinkerFloor(std::uint8_t a_major, std::uint8_t a_minor)
+	{
+		if (a_major != 14 || a_minor < 10)
+			return {};
+		// minor -> first Visual Studio release with that linker (public release dates)
+		static constexpr struct { std::uint8_t minor; Ymd day; } kTable[] = {
+			{ 10, { 2017, 3, 7 } }, { 11, { 2017, 8, 14 } }, { 12, { 2017, 12, 4 } }, { 13, { 2018, 3, 5 } }, { 14, { 2018, 5, 7 } },
+			{ 15, { 2018, 8, 14 } }, { 16, { 2018, 11, 13 } }, { 20, { 2019, 4, 2 } }, { 21, { 2019, 5, 21 } }, { 22, { 2019, 7, 24 } },
+			{ 23, { 2019, 9, 23 } }, { 24, { 2019, 12, 3 } }, { 25, { 2020, 3, 16 } }, { 26, { 2020, 5, 19 } }, { 27, { 2020, 8, 5 } },
+			{ 28, { 2020, 11, 10 } }, { 29, { 2021, 5, 25 } }, { 30, { 2021, 11, 8 } }, { 31, { 2022, 2, 15 } }, { 32, { 2022, 5, 10 } },
+			{ 33, { 2022, 8, 9 } }, { 34, { 2022, 11, 8 } }, { 35, { 2023, 2, 21 } }, { 36, { 2023, 5, 16 } }, { 37, { 2023, 8, 8 } },
+			{ 38, { 2023, 11, 14 } }, { 39, { 2024, 2, 13 } }, { 40, { 2024, 5, 21 } }, { 41, { 2024, 8, 13 } }, { 42, { 2024, 11, 12 } },
+			{ 43, { 2025, 2, 11 } }, { 44, { 2025, 5, 13 } },
+		};
+		Ymd best{};
+		for (const auto& e : kTable)
+			if (e.minor <= a_minor)
+				best = e.day;
+		return best;
 	}
 
 	inline PeInfo ParsePe(Bytes d)
@@ -79,6 +130,8 @@ namespace Vitals::Formats
 			pe.error = "not a Windows DLL";
 			return pe;
 		}
+		Get(d, opt + 2, pe.linkerMajor);
+		Get(d, opt + 3, pe.linkerMinor);
 		if (magic != 0x20B) {
 			pe.error = "a 32-bit DLL (Fallout 4 is 64-bit, so it can never load)";
 			return pe;
@@ -93,6 +146,19 @@ namespace Vitals::Formats
 			pe.sections.push_back(s);
 		}
 		pe.ok = true;
+		{
+			// Reproducible builds (/Brepro) fill the timestamp with a hash that can look like any date. They say so with a
+			// debug directory entry of type 16 (IMAGE_DEBUG_TYPE_REPRO).
+			std::uint32_t dbgRva = 0, dbgSize = 0;
+			Get(d, opt + 160, dbgRva);
+			Get(d, opt + 164, dbgSize);
+			if (const auto dbg = dbgRva ? RvaToOff(pe, dbgRva) : std::nullopt; dbg && dbgSize <= 4096)
+				for (std::uint32_t k = 0; k + 28 <= dbgSize; k += 28) {
+					std::uint32_t type = 0;
+					if (Get(d, *dbg + k + 12, type) && type == 16)
+						pe.reproducible = true;
+				}
+		}
 		const auto eo = expRva ? RvaToOff(pe, expRva) : std::nullopt;
 		if (!eo)
 			return pe;

@@ -19,6 +19,7 @@ namespace Vitals
 		bool          doctor{ true };           // plugin doctor: why DLLs were refused, load-order masters, known problems
 		std::uint32_t popupMode{ 1 };           // 0 = never, 1 = when the problem list changes, 2 = every launch
 		std::uint32_t keepSessions{ 5 };        // copies of earlier Vitals.jsonl kept in Vitals\history (0 = none)
+		int           sharePack{ -1 };          // -1 = follow the installer (Vitals\share-optin.txt), 0 = off, 1 = on
 	};
 	const Settings& GetSettings();
 	void            LoadSettings();
@@ -64,6 +65,10 @@ namespace Vitals
 	std::string Lower(std::string a_text);
 	std::wstring Widen(std::string_view a_utf8);
 	std::optional<std::chrono::sys_seconds> FileTimeToSys(std::filesystem::file_time_type a_t);  // never throws
+	// Up to a_max bytes of a file; empty when it cannot be read. Never throws for a missing or locked file.
+	std::vector<std::uint8_t> ReadBytes(const std::filesystem::path& a_file, std::size_t a_max);
+	// The entries of one folder (not recursive), at most a_max. Never throws; an unreadable folder gives what was read.
+	std::vector<std::filesystem::directory_entry> ListDir(const std::filesystem::path& a_dir, std::size_t a_max = 100'000);
 
 	// ---- Address Library, read by Vitals itself (never through CommonLib's REL::IDDB, which ends the game) ----
 	struct AddressLibraryInfo
@@ -87,6 +92,9 @@ namespace Vitals
 	void ReportEnvironment();  // kPostPostLoad
 	void RunDoctor();          // kPostPostLoad: plugin doctor, load-order and known-problem checks, Vitals-Report.txt
 	void DoctorAddressNote(std::string_view a_line);  // kGameDataReady: add the address-check result to Vitals-Report.txt
+	bool SharePackEnabled();   // opt-in: bSharePack, or the installer's share-optin.txt
+	void WriteSharePack(std::string_view a_when);  // background thread; when off, removes an old pack
+	std::string ShareReportText();  // the report's share-pack section (empty when off)
 	void CheckAddresses();     // kGameDataReady
 	void RecheckPointers();    // after a save loads: singletons that were null at the menu
 	void ListPapyrusNatives(); // kGameDataReady (opt-in)

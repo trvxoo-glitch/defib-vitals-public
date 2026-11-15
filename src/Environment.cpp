@@ -116,7 +116,7 @@ namespace Vitals
 		std::error_code ec;
 		std::size_t total = 0, loaded = 0;
 		HashCache   hashes;
-		for (const auto& entry : std::filesystem::directory_iterator(PluginDir(), ec)) {
+		for (const auto& entry : ListDir(PluginDir())) {
 			if (!entry.is_regular_file(ec) || Lower(Narrow(entry.path().extension().wstring())) != ".dll")  // any case, as F4SE
 				continue;
 			++total;

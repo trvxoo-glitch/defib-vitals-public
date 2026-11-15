@@ -184,29 +184,82 @@ def check_load_order(game, plugins_txt):
 NEXT_GEN = dt.date(2024, 4, 25)  # the update that introduced F4SEPlugin_Version
 
 
+def _is_reproducible(path, head, pe):
+    """True when the DLL is a reproducible build (/Brepro): its timestamp is a hash, not a date (debug entry type 16)."""
+    opt = pe + 24
+    if struct.unpack_from("<H", head, opt)[0] != 0x20B:
+        return False
+    rva, size = struct.unpack_from("<II", head, opt + 160)
+    if not rva or size > 4096:
+        return False
+    nsec, osz = struct.unpack_from("<H", head, pe + 6)[0], struct.unpack_from("<H", head, pe + 20)[0]
+    for i in range(nsec):
+        vs, va, rs, ro = struct.unpack_from("<IIII", head, opt + osz + i * 40 + 8)
+        if va <= rva < va + max(vs, rs):
+            with open(path, "rb") as f:
+                f.seek(rva - va + ro)
+                blob = f.read(size)
+            return any(struct.unpack_from("<I", blob, k + 12)[0] == 16 for k in range(0, len(blob) - 27, 28))
+    return False
+
+
+# First Visual Studio release with each MSVC linker 14.x (same table as LinkerFloor in include/Vitals/Formats.h).
+# No DLL can be older than the linker that made it, so this catches fake, zeroed or hashed build dates.
+LINKER_FLOOR = {
+    10: (2017, 3, 7), 11: (2017, 8, 14), 12: (2017, 12, 4), 13: (2018, 3, 5), 14: (2018, 5, 7), 15: (2018, 8, 14),
+    16: (2018, 11, 13), 20: (2019, 4, 2), 21: (2019, 5, 21), 22: (2019, 7, 24), 23: (2019, 9, 23), 24: (2019, 12, 3),
+    25: (2020, 3, 16), 26: (2020, 5, 19), 27: (2020, 8, 5), 28: (2020, 11, 10), 29: (2021, 5, 25), 30: (2021, 11, 8),
+    31: (2022, 2, 15), 32: (2022, 5, 10), 33: (2022, 8, 9), 34: (2022, 11, 8), 35: (2023, 2, 21), 36: (2023, 5, 16),
+    37: (2023, 8, 8), 38: (2023, 11, 14), 39: (2024, 2, 13), 40: (2024, 5, 21), 41: (2024, 8, 13), 42: (2024, 11, 12),
+    43: (2025, 2, 11), 44: (2025, 5, 13),
+}
+
+
+def linker_floor(major, minor):
+    if major != 14 or minor < 10:
+        return None  # 14.0 is also what lld-link writes
+    best = None
+    for m, day in sorted(LINKER_FLOOR.items()):
+        if m <= minor:
+            best = dt.date(*day)
+    return best
+
+
 def age_note(path):
-    """Second check for 'outdated': when was the DLL built (COFF timestamp), else the file date, vs the Next-Gen update."""
+    """Second check for 'outdated': when was the DLL built (COFF timestamp), else the file date, vs the Next-Gen update.
+    The linker version sets a date the DLL cannot be older than."""
     try:
         with open(path, "rb") as f:
             d = f.read(4096)
         pe = struct.unpack_from("<I", d, 0x3C)[0]
         ts = struct.unpack_from("<I", d, pe + 8)[0]
-    except (OSError, struct.error):
+        floor = linker_floor(d[pe + 24 + 2], d[pe + 24 + 3])
+        repro = _is_reproducible(path, d, pe)
+    except (OSError, struct.error, IndexError):
         return ""
     weak = False
     built = None
-    if ts:
+    if ts and not repro:
         try:
             built = dt.datetime.fromtimestamp(ts, dt.timezone.utc).date()
         except (OverflowError, OSError, ValueError):
             built = None
+    if built and floor and built + dt.timedelta(days=31) < floor:
+        built = None  # dated before its own linker existed: the date is not real
     if not built or built < dt.date(2010, 1, 1) or built > dt.date.today() + dt.timedelta(days=1):
         built = dt.date.fromtimestamp(os.path.getmtime(path))
         weak = True
-    what = "Its file is dated" if weak else "Built"
+    if floor and built < floor:
+        if floor < NEXT_GEN:
+            return ""  # all we know is "after <floor>", which says nothing about Next-Gen
+        return (f" It was made with a linker first released {floor}, so it was built after that, after the Next-Gen update,"
+                " so it may still be maintained and only lack the new version data.")
+    what = "Its file is dated" if weak else "Built (date inside the DLL)"
     if built < NEXT_GEN:
-        return f" {what} {built}, before the April 2024 Next-Gen update, so it {'was probably' if weak else 'was'} made for Old-Gen 1.10.163 or earlier and is outdated."
-    return f" {what} {built}, after the Next-Gen update, so it may still be maintained and only lack the new version data: check the mod page for a newer file."
+        return (f" {what} {built}, before the April 2024 Next-Gen update, so it {'was probably' if weak else 'was most likely'} made for Old-Gen 1.10.163 or earlier."
+                "")
+    return (f" {what} {built}, after the Next-Gen update, so it may still be maintained and only lack the new version data."
+            "")
 
 
 ADVICE = {
@@ -380,8 +433,9 @@ def load_rules(paths):
             key = (f[0].lower(), f[1].lower(), f[2].lower()) if len(f) >= 5 else None
             if key and key not in seen:
                 seen.add(key)
-                rules.append({"kind": f[0].lower(), "match": f[1], "extra": f[2], "severity": f[3].lower(),
-                              "message": " | ".join(f[4:])})
+                kind, _, eras = f[0].lower().partition("@")  # "oldfile@ng,ae": only on those game versions
+                rules.append({"kind": kind.strip(), "eras": {e.strip().upper() for e in eras.split(",") if e.strip()} if _ else None,
+                              "match": f[1], "extra": f[2], "severity": f[3].lower(), "message": " | ".join(f[4:])})
     return rules
 
 
@@ -402,8 +456,11 @@ def check_rules(game, rules, runtime, dll_issues):
     plugins = os.path.join(game, "Data", "F4SE", "Plugins")
     refused = {i["subject"].lower() for i in dll_issues if i["category"] == "plugin_dll"}  # will not run, for any reason
     blobs = {}
+    era = RUNTIMES[runtime][1] if runtime in RUNTIMES else None
     for r in rules:
         k = r["kind"]
+        if r.get("eras") is not None and era not in r["eras"]:
+            continue  # same as Vitals' Rules::RuleRuntimes
         if k == "needs":
             users = []
             for p in glob.glob(os.path.join(plugins, "*.dll")):
@@ -428,7 +485,7 @@ def check_rules(game, rules, runtime, dll_issues):
                 continue  # a malformed date: skip the rule, as Vitals does in game
             if os.path.exists(p):
                 when = dt.date.fromtimestamp(os.path.getmtime(p))
-                if when < cutoff:
+                if dt.date(2015, 11, 10) <= when < cutoff:  # an archive's 1980 date says nothing, as in game
                     out.append(issue(r["severity"], "loose_file", r["match"], f"{r['match']} is dated {when}, older than {r['extra']}. {r['message']}"))
         elif k == "file":
             if exists(game, r["match"], runtime):

@@ -13,7 +13,10 @@
 | Address check: many `differs` or `patched_in_place` | Another mod patched those functions in place (`patched_in_place`: switched off with a return stub), or the address list does not match your build. Report it with `Vitals.jsonl` |
 | Address check: `resolved_no_baseline` on Old-Gen | Expected. The Steam 1.10.163 exe is encrypted on disk. Optional: capture a local baseline once (`bCaptureBaseline=1`, F4SE + Vitals only, then back to 0) |
 | A load-order warning for a plugin that is fine | Vitals reads `%LOCALAPPDATA%\Fallout4\plugins.txt` and `Fallout4.ccc`. If your manager keeps the order elsewhere and it does not reach the game, report it with the report file |
-| Start-up a little slower | The doctor reads each DLL in `Data\F4SE\Plugins` once (a few MB in total, under a second on an SSD). `bDoctor=0` turns it off |
+| Start-up a little slower | The doctor reads each plugin that is not running once and looks through your mod folders for other copies (limited to 2 seconds; the report's "Mod manager:" line shows the time). `bDoctor=0` turns it off |
+| The report says the other-copies look-up "stopped at the time limit" | A very large mod list on a slow disk. The rest of the report is complete; the list of other copies may be short |
+| No `Vitals-Share.zip`, or it is old | The pack is only made when `Data\F4SE\Plugins\Vitals\share-optin.txt` has a `share=1` line (installer: **Yes**) or `bSharePack=1`. An older test build's marker file does not count: reinstall and pick Yes. If the zip was open in Explorer or Discord, look for `Vitals-Share-new.zip` |
+| I picked No thanks but still get a pack | A merge-style reinstall from a version before 0.4.0 can leave an old marker. Reinstall 0.4.0 and pick **No thanks** (it writes `share=0`), or set `bSharePack=0` |
 
 ## Problems Vitals points at
 

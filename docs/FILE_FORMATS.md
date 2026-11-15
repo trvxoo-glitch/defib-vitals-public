@@ -27,6 +27,8 @@ ignore unknown fields and must not rely on field order.
 | `doctor` | after the doctor | `problems`, `warnings`, `issues`, `rules` (rules loaded), `ms` (time taken) |
 | `doctor_popup` | the message box was shown | `crash_risks`, `not_running` (0.3.0: `problems`) |
 | `doctor_popup_choice` | the user pressed a button | `choice`: `continue`, `dont_show_again`, `stop_game` |
+| `doctor_popup_copy` | the user pressed Copy report (0.4.0) | `copied`, `chars` |
+| `share_pack` | a share pack was written (opt-in, 0.4.0) | `when` (`start`, `main_menu`), `files`, `bytes`, `scrubbed` (items replaced), `left_out` (files dropped by the size cap) |
 | `address` | one per checked ID | `name`, `id`, `source` (list file), `entry_kind` (`fn`/`ptr`/`data`), `checked_as`, `result`, `offset`, `bytes`, `expected`, `ptr_class` (also `listed_as_code_but_is_data`), `jump_target`, `hooked_by`, `owner_category`, `jump_hops`, `stub`, `expected_bytes_not_checked` |
 | `address_check_unavailable` | instead of the address check, when the Address Library is not usable | `address_library_file`, `state`, `problem` |
 | `error` | a step stopped on an exception (the game keeps running) | `step`, `what` |
@@ -77,6 +79,9 @@ They are copies of game code: keep them local, never commit or upload them.
 ```
 kind | match | extra | severity | message
 ```
+Since 0.4.0 a kind can name the game versions it applies to: `oldfile@NG,AE | ...` (`OG` = 1.10.163, `NG` =
+1.10.980/984, `AE` = 1.11.x, any order and case). Without a list the rule applies to every version. Older Vitals see an
+unknown kind and skip the rule. `Rules::RuleRuntimes` decides; `tools/defib_preflight.py` does the same.
 | kind | match | extra | Issue when |
 | --- | --- | --- | --- | --- |
 | `dll` | DLL file name in `Data\F4SE\Plugins` | `refused` or `-` | the DLL is present (and, with `refused`, not running) |
@@ -139,6 +144,35 @@ hashes only DLLs that changed. Safe to delete. `doctor_popup_choice` records the
 `not_plugin`, `og_no_query`, `og_query_decides`, `no_version_data_query_only`, `no_version_data`, `bad_version_data`,
 `no_name`, `address_library_missing`, `ng_flags_only`, `other_builds`, `not_declared`, `needs_newer_f4se`, and for a
 DLL the rules accept: `independent`, `listed`. Defined in `include/Vitals/Rules.h`; cases in `tests/loader_cases.txt`.
+
+## Share pack: Vitals-Share.zip (opt-in, 0.4.0)
+
+On when `Data\F4SE\Plugins\Vitals\share-optin.txt` has a `share=1` line (the installer's **Yes** option; **No
+thanks** installs the same file with `share=0`, and a file with neither, such as an early 0.4.0 test build's, is off)
+unless `Vitals.ini` sets `bSharePack=0`; `bSharePack=1` turns it on without the file. Off: the next launch deletes
+`Vitals-Share.zip`, `Vitals-Share-new.zip` and `share-id.txt`. Written on a background thread at PostPostLoad (after
+the report, before the start-up box shows) and again at the main menu (`Vitals-Share.zip.tmp`, then renamed over the old one;
+when the old one is open in another program, renamed to `Vitals-Share-new.zip` and a line in `Vitals-summary.txt`
+says so).
+
+A zip with **stored** (uncompressed) entries and UTF-8 names (`include/Vitals/Zip.h`). Entries, in this order:
+`manifest.json`, `Vitals-Report.txt`, `Vitals-summary.txt`, `status.json`, `f4se.log`, `f4se_loader.log`,
+`crash/crash-*.log`, `plugins.txt`, `Fallout4.ccc`, `ini-settings.txt`, `system.txt`, `dll-sources.txt` (Vortex),
+`papyrus-summary.txt`, `breadcrumbs.txt`, `popup_disabled.txt`, `Vitals.jsonl`, `Vitals.prev.jsonl`,
+`scrub-report.txt`. A missing source file is left out. Every entry, `manifest.json` too, passed through
+`include/Vitals/Scrub.h` (crash logs through `Scrub::CrashLog`). A crash log keeps its file name only when it is a
+date (`crash-2026-11-15-10-42-18.log`); otherwise it is `crash/crash-1.log` and so on. `papyrus-summary.txt` has one
+section per Papyrus log (`== Papyrus.0.log (this launch) ==`, `== Papyrus.1.log (an earlier launch) ==`, by file
+date against Vitals' start). A file cut to its newest part starts with `[Vitals: N older bytes left out; ...]`, N
+counted in the original file. Each source keeps its
+newest 2 MB (a first line `[Vitals: N older bytes left out ...]` says so); files that would take the pack past 8 MB are
+left out and named in the manifest. These are the only names in a pack.
+
+`manifest.json`: `format` (`vitals-share 1`), `vitals_version`, `game_version`, `runtime`, `f4se_version`,
+`install_id` (32 hex digits, random, from `share-id.txt`), `date` (`YYYY-MM-DD`), `written_at` (`start` or
+`main_menu`), `files` (list of `{name, bytes, crc32}`), `left_out_for_size` (names).
+
+`share-id.txt`: the random install id, one line. Delete it for a new id.
 
 ## Vitals.ini
 
