@@ -43,7 +43,7 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 						<plugin name="Yes, help improve Vitals">
 							<description>Vitals saves a log pack (Vitals-Share.zip) on your PC after each session, with your user name, PC name, emails, IP addresses, keys and private paths scrubbed out. Vitals never sends it.
 
-To help: open https://vitals-share.vitalsguy.workers.dev, drag Vitals-Share.zip onto the page (it is in Documents\My Games\Fallout4\F4SE\Vitals), and press Send. You see every file first and can untick any. Details: docs\PRIVACY_AND_SAFETY.md on GitHub.</description>
+To help: open https://vitals-share.vitalsguy.workers.dev, drag Vitals-Share.zip onto the page (it is in Documents\My Games\Fallout4\F4SE\Vitals), and press Send. You see every file first and can untick any. Full details: https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default</description>
 							<files>
 								<folder source="20 Share - Yes" destination="" />
 							</files>
