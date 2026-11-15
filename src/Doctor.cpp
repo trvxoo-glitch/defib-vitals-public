@@ -437,7 +437,7 @@ namespace Vitals
 				// the mod page, and (Vortex) which mod's copy is the one deployed. Another mod bundling an older copy of
 				// a shared DLL, and winning the file conflict, looks exactly like an outdated mod otherwise.
 				std::string where;
-				if (const auto ver = FileVersion(data); !ver.empty())
+				if (const auto ver = Formats::FileVersion(data); !ver.empty())
 					where += " File version " + ver + ".";
 				if (const auto src = VortexSource(file); !src.empty())
 					where += " Installed by the Vortex mod \"" + src + "\".";
