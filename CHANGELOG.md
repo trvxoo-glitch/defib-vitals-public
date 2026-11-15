@@ -21,8 +21,9 @@ Not yet tested in game.
   released a version for your game yet and nothing is wrong with your setup.
 - **Spot an older copy overwriting a mod.** For each plugin that is not running, the report now shows the DLL's own
   file version (to compare with the mod page) and, with Vortex, which mod installed that copy. A newer mod whose DLL is
-  overwritten by an older copy from another mod (a bundle, a patch, a leftover) used to look exactly like an outdated mod.
-  The advice says how to check the file conflict in Vortex or MO2.
+  overwritten by an older copy from another mod used to look exactly like an outdated mod. One TIP line at the end of
+  the warnings says how to check file conflicts in Vortex or MO2 (it is not repeated on every plugin).
+- **New knowledge rule:** Independent Weapon Facing (its page says Old-Gen 1.10.163 only) is explained on Next-Gen/Anniversary.
 - **Copy report** button in the start-up box: copies the whole report to the clipboard and leaves the box open.
 - **Knowledge rules can name game versions** (`oldfile@NG,AE`). The old main-menu and font-file rules now apply only
   to Next-Gen and Anniversary, where those files break; Old-Gen players no longer see them. The offline preflight

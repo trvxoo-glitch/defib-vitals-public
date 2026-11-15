@@ -226,9 +226,9 @@ def age_note(path):
     what = "Its file is dated" if weak else "Built (date inside the DLL)"
     if built < NEXT_GEN:
         return (f" {what} {built}, before the April 2024 Next-Gen update, so it {'was probably' if weak else 'was most likely'} made for Old-Gen 1.10.163 or earlier."
-                " If it is already the newest file on its mod page, its author has not released a version for your game yet.")
+                "")
     return (f" {what} {built}, after the Next-Gen update, so it may still be maintained and only lack the new version data."
-            " If it is already the newest file on its mod page, the author has not added Next-Gen support yet.")
+            "")
 
 
 ADVICE = {

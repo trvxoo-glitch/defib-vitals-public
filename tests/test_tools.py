@@ -316,7 +316,7 @@ class AgeNoteTests(unittest.TestCase):
             self.assertIn("Its file is dated", defib_preflight.age_note(self._dll(tmp, 0xDEADBEEF)))
             # the wording does not call a file outdated: the newest file on a mod page may simply lack Next-Gen support
             self.assertNotIn("outdated", defib_preflight.age_note(self._dll(tmp, old)))
-            self.assertIn("already the newest file", defib_preflight.age_note(self._dll(tmp, old)))
+            self.assertIn("most likely made for Old-Gen", defib_preflight.age_note(self._dll(tmp, old)))
             # a /Brepro build (debug entry type 16) has a hash for a timestamp: do not trust it
             repro = self._dll(tmp, new)
             d = bytearray(open(repro, "rb").read())

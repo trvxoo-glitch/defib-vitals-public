@@ -137,12 +137,12 @@ namespace Vitals
 			if (day < nextGen) {
 				a.kind = Age::Kind::before;
 				a.group = "pre";
-				a.text = std::format(" {}{}, before the April 2024 Next-Gen update, so {} made for Old-Gen 1.10.163 or earlier. If it is already the newest file on its mod page, its author has not released a version for your game yet.", what, when,
+				a.text = std::format(" {}{}, before the April 2024 Next-Gen update, so {} made for Old-Gen 1.10.163 or earlier.", what, when,
 					weak ? "it was probably" : "it was most likely");
 			} else {
 				a.kind = Age::Kind::after;
 				a.group = "post";
-				a.text = std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data. If it is already the newest file on its mod page, the author has not added Next-Gen support yet.", what, when);
+				a.text = std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data.", what, when);
 			}
 			return a;
 		}
@@ -428,9 +428,9 @@ namespace Vitals
 					if (e.text.back() == '.')
 						e.text.pop_back();
 					if (age.kind == Age::Kind::after)
-						e.advice = "Check the mod page for a newer file. If you already have the newest, nothing is wrong with your setup: F4SE 0.7.x skips this build, so the mod does not work on this game version for now.";
+						e.advice = "Check the mod page for a Next-Gen/Anniversary file. If you already have the newest, the author has not added support for your game version yet.";
 					else if (age.kind == Age::Kind::before)
-						e.advice = "Check the mod page for a version made for your game version. If this is already the newest file, nothing is wrong with your setup: that mod does not support this game version yet, so look for a replacement. Until then its features (and mods that need it) will not work.";
+						e.advice = "Look for a Next-Gen/Anniversary version of this mod, or a replacement. Until then its features (and mods that need it) will not work.";
 				}
 				const bool notPlugin = why == Loader::Why::not_plugin;
 				// What the player needs to tell "old mod" from "old copy": the DLL's own version number to compare with
@@ -441,8 +441,6 @@ namespace Vitals
 					where += " File version " + ver + ".";
 				if (const auto src = VortexSource(file); !src.empty())
 					where += " Installed by the Vortex mod \"" + src + "\".";
-				if (!notPlugin && (why == Loader::Why::no_version_data || why == Loader::Why::no_version_data_query_only))
-					e.advice += " If you just installed the newest file and still see this, another mod may be overwriting it with an older copy: check which mod provides this DLL in your mod manager (Vortex: the mod's Conflicts; MO2: the Data tab).";
 				// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
 				// Library) are reported as problems by their own checks, or by a rule that says so.
 				std::string severity = notPlugin ? "info" : "warning";
@@ -747,6 +745,10 @@ namespace Vitals
 					out << "\n";  // a blank line between entries
 				}
 			}
+			if (std::ranges::any_of(g_issues, [](const Issue& i) { return !i.group.empty(); }))
+				out << "TIP: the \"File version\" and \"Installed by\" details above show which copy of a mod is in your game. If you just\n"
+				       "installed the newest file of a mod listed here and it still shows, another mod may be overwriting it with an older\n"
+				       "copy: check the file conflicts in your mod manager (Vortex: Mods > Conflicts; MO2: the Data tab).\n";
 			if (!g_addrNotes.empty()) {
 				out << "\nADDRESS CHECK (main menu)\n";
 				for (const auto& n : g_addrNotes)

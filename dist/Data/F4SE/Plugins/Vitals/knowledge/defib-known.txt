@@ -17,3 +17,7 @@
 # The rules found by the Defib census are in defib-census.txt next to this file (generated from the census
 # repository; it is replaced by updates too). This file keeps the format notes above and any rule that does not
 # come from the census. If the same rule is in two files, Vitals uses it once.
+
+# Independent Weapon Facing (Nexus 108957): its page says it was made for Old-Gen 1.10.163 only; the 7.4 DLL has
+# F4SEPlugin_Query but no F4SEPlugin_Version, and F4SE 0.7.9 skips it on AE 1.11.240 (confirmed 2026-11-15).
+dll@NG,AE | IndependentWeaponFacing.dll | refused | warning | Independent Weapon Facing's page says it was made for Old-Gen 1.10.163 only, so it does nothing on Next-Gen or Anniversary.
