@@ -77,11 +77,12 @@ def pull_discord(out, token=None, guild=None, category=None):
             print(f"  {names.get(c.get('parent_id'), '(no category)')} [{c.get('parent_id')}] -> {c.get('name')}")
     for ch in chosen:
         before = None
-        seen_msgs = 0
+        seen_msgs = seen_atts = 0
         while True:
             msgs = _discord(f"/channels/{ch['id']}/messages?limit=100" + (f"&before={before}" if before else ""), token)
             seen_msgs += len(msgs)
             for m in msgs:
+                seen_atts += len(m.get("attachments", []))
                 for att in m.get("attachments", []):
                     name = re.sub(r"[^A-Za-z0-9._-]", "_", att.get("filename", "pack.zip"))
                     if not name.lower().endswith(".zip") or att.get("size", 0) > 32 << 20:
@@ -96,7 +97,10 @@ def pull_discord(out, token=None, guild=None, category=None):
             if len(msgs) < 100:
                 break
             before = msgs[-1]["id"]
-        print(f"  {ch.get('name')}: {seen_msgs} message(s) read")
+        print(f"  {ch.get('name')}: {seen_msgs} message(s) read, {seen_atts} attachment(s) seen")
+        if seen_msgs > 1 and not seen_atts:
+            print("    No attachments visible. Discord hides attachments from bots that do not have the Message Content Intent:\n"
+                  "    Developer Portal > your app > Bot > Privileged Gateway Intents > turn on MESSAGE CONTENT INTENT, Save.")
     print(f"{new} new file(s) in {out}. Packs are checked when you run summary; anything that is not a Vitals pack is ignored.")
     return new
 
