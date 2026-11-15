@@ -76,8 +76,9 @@ When `f4se.log` has a line about the DLL, it is quoted.
 Below the reason, Vitals adds what it can find on your own PC, with no internet and no mod page:
 
 - **File version**: the version number inside the DLL, to compare with the mod page.
-- **Installed by**: which Vortex or MO2 mod the game's copy came from. Under MO2, if MO2 has already seen a newer
-  version on Nexus, that is shown too.
+- **Installed by**: which Vortex or MO2 mod the game's copy came from. If your mod manager's update check has already
+  seen a newer version on Nexus, that is shown too (run "Check for updates" in Vortex or MO2 first for the freshest
+  answer; Vitals does not go online itself).
 - **Other installed copies**: other mods in your Vortex staging folder or MO2 mods folder that carry the same DLL. If
   one of them would run on your game, the advice tells you to let that mod win the file conflict. This is the usual
   cause when an up-to-date mod shows up here: an older mod (or an old bundled copy) overwrites its DLL.

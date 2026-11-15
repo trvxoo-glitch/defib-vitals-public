@@ -12,13 +12,18 @@ Vitals is meant to be left installed, so this page says plainly what it reads, w
 - The DLL files in `Data\F4SE\Plugins` (headers and export names, to explain why F4SE skipped them), and their build dates.
 - `Documents\My Games\Fallout4\F4SE\f4se.log` (F4SE's own log), `Fallout4Custom.ini` and `Fallout4.ini` (the [Archive] settings only), `%LOCALAPPDATA%\Fallout4\plugins.txt`, `Fallout4.ccc`, and the headers of the plugins in the load order (masters and flags).
 - A few file names and dates in the game folder (for the knowledge rules).
+- Only when an F4SE plugin is not running: your mod manager's own records, to explain it. For Vortex,
+  `Data\vortex.deployment.json`, the copies of that DLL in its staging folder, and the newest state backup in
+  `%APPDATA%\Vortex\temp\state_backups_full` (only each mod's folder name, version and newest version are used). For
+  MO2, `ModOrganizer.ini`, the copies of that DLL in its mods folder, and those mods' `meta.ini`. Nothing from these
+  goes into the share pack except what the report already says.
 - Engine addresses listed in `Vitals\addresses\*.txt`, to compare their first bytes.
 
 ## What it writes
 Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vitals.jsonl` (plus kept history), `breadcrumbs.bin`, `status.json`, `popup_disabled.txt`, `hashes.txt`, and, only if you turn them on, local baselines and the share pack (`Vitals-Share.zip`, `share-id.txt`). Nothing is written anywhere else. The **Copy report** button in the start-up box puts the report on the clipboard when you press it.
 
 ## What it sends
-**Nothing.** It has no network code. No telemetry, no update check, no account. Files never leave your PC unless you send them.
+**Nothing.** It has no network code. No telemetry, no update check of its own, no account. (It can show what your mod manager's update check already found.) Files never leave your PC unless you send them.
 
 ## The share pack (opt-in, off by default)
 If you pick **Yes, help improve Vitals** in the installer (or set `bSharePack=1`), Vitals writes

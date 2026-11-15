@@ -380,6 +380,7 @@ namespace Vitals
 		struct Managers
 		{
 			Share::VortexDlls                  vortex;
+			std::map<std::string, ModManagers::VortexModInfo> vortexMods;  // staging folder name (lower case) -> versions
 			std::vector<std::filesystem::path> modRoots;  // folders whose subfolders are installed mods
 			bool                               mo2{ false };
 		};
@@ -398,6 +399,24 @@ namespace Vitals
 				out.vortex = Share::ParseVortexManifest(ReadText(GameDir() / L"Data" / L"vortex.deployment.json"));
 				if (!out.vortex.staging.empty())
 					out.modRoots.emplace_back(Widen(out.vortex.staging));
+				// Vortex's update check (newestVersion) from its newest full state backup.
+				wchar_t    ad[512]{};
+				const auto an = REX::W32::GetEnvironmentVariableW(L"APPDATA", ad, 512);
+				if (!out.vortex.dlls.empty() && an && an < 512) {
+					std::filesystem::path           newest;
+					std::filesystem::file_time_type when{};
+					for (const auto& f : std::filesystem::directory_iterator(std::filesystem::path(std::wstring(ad, an)) / L"Vortex" / L"temp" / L"state_backups_full", ec)) {
+						if (Lower(Narrow(f.path().extension().wstring())) != ".json")
+							continue;
+						const auto t = f.last_write_time(ec);
+						if (!ec && (newest.empty() || t > when))
+							newest = f.path(), when = t;
+					}
+					if (!newest.empty()) {
+						const auto d = ReadFile(newest, 256u << 20);
+						out.vortexMods = ModManagers::VortexStateMods(std::string_view(reinterpret_cast<const char*>(d.data()), d.size()));
+					}
+				}
 				if (const auto usvfs = REX::W32::GetModuleHandleW(L"usvfs_x64.dll")) {
 					out.mo2 = true;
 					wchar_t    buf[1024]{};
@@ -464,10 +483,14 @@ namespace Vitals
 					auto label = "\"" + name + "\"";
 					if (const auto v = Formats::FileVersion(data); !v.empty())
 						label += " (file version " + v + ")";
-					if (mm.mo2) {
-						const auto meta = ModManagers::Mo2Meta(ReadText(mod.path() / L"meta.ini"));
-						if (!meta.version.empty() && Formats::FileVersion(data).empty())
-							label += " (mod version " + meta.version + ")";
+					if (Formats::FileVersion(data).empty()) {
+						std::string modVersion;
+						if (const auto it = mm.vortexMods.find(Lower(name)); it != mm.vortexMods.end())
+							modVersion = it->second.version;
+						else if (mm.mo2)
+							modVersion = ModManagers::Mo2Meta(ReadText(mod.path() / L"meta.ini")).version;
+						if (!modVersion.empty())
+							label += " (mod version " + modVersion + ")";
 					}
 					(Explain(pe, ReadVersionData(data, pe), {}).verdict.status == Loader::Status::yes ? wouldRun : wouldNot).push_back(label);
 				}
@@ -491,11 +514,20 @@ namespace Vitals
 			return {};
 		}
 
-		// MO2's own update check (meta.ini newestVersion), for the mod that installed a DLL.
-		std::string Mo2Newer(const std::string& a_mod)
+		// The mod manager's own update check (Vortex state backup, or MO2 meta.ini newestVersion), for the mod that
+		// installed a DLL. Both come from the Nexus API, called by the mod manager; Vitals itself never goes online.
+		std::string NewerOnNexus(const std::string& a_mod, bool a_vortex)
 		{
 			const auto& mm = InstalledMods();
-			if (!mm.mo2 || a_mod.empty())
+			if (a_mod.empty())
+				return {};
+			if (a_vortex) {
+				const auto it = mm.vortexMods.find(Lower(a_mod));
+				if (it != mm.vortexMods.end() && ModManagers::NewerVersion(it->second.newest, it->second.version))
+					return std::format(" Vortex says a newer version of this mod is on Nexus: {} (you have {}).", it->second.newest, it->second.version);
+				return {};
+			}
+			if (!mm.mo2)
 				return {};
 			for (const auto& root : mm.modRoots) {
 				const auto meta = ModManagers::Mo2Meta(ReadText(root / std::filesystem::path(Widen(a_mod)) / L"meta.ini"));
@@ -578,8 +610,7 @@ namespace Vitals
 				const auto  others = OtherCopies(file, data, installedBy, copyAdvice);
 				if (!installedBy.empty())
 					where += std::format(" Installed by the {} mod \"{}\".", byVortex ? "Vortex" : "MO2", installedBy);
-				if (!byVortex)
-					where += Mo2Newer(installedBy);
+				where += NewerOnNexus(installedBy, byVortex);
 				where += others;
 				// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
 				// Library) are reported as problems by their own checks, or by a rule that says so.

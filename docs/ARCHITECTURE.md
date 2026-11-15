@@ -96,7 +96,9 @@ and a message box there appears before a load-order crash at the main menu.
    staging folder; under MO2 (`usvfs_x64.dll` loaded) the portable `ModOrganizer.ini` next to it, or the instances in
    `%LOCALAPPDATA%\ModOrganizer`, give the mods folder. Every mod there with its own `F4SE\Plugins\<dll>` is read
    and judged by `Loader::Check`; a copy that would run becomes the advice ("make that mod win the file conflict").
-   MO2's `meta.ini` `newestVersion` is reported when it is newer than `version`. All of this only reads files, and only
+   The mod manager's update check is reported when its `newestVersion` is newer than `version`: MO2's `meta.ini`, or
+   for Vortex `persistent.mods.fallout4.<id>.attributes` in the newest `%APPDATA%\Vortex\temp\state_backups_full\*.json`
+   (its full state backup; the live state is a LevelDB database), matched by `installationPath`. All of this only reads files, and only
    for DLLs that are not running.
 6. **Load order.** Base masters, then `Fallout4.ccc` entries present in Data, then active (`*`) lines of
    `%LOCALAPPDATA%\Fallout4\plugins.txt`. Under MO2 the virtual file system makes the profile's file appear

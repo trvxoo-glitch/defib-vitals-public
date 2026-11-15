@@ -572,6 +572,19 @@ static void ModManagerTests()
 	CHECK(M::NewerVersion("v2.1", "2.0"));
 	CHECK(!M::NewerVersion("", "1.0"));
 	CHECK(!M::NewerVersion("1.0", ""));
+	// Vortex full state backup: persistent.mods.<game>.<id>; other games, other keys and odd values are skipped
+	const auto vm = M::VortexStateMods(R"({"app":{"x":[1,2,{"a":null}]},"persistent":{"profiles":{},"mods":{
+		"skyrimse":{"1":{"installationPath":"Other","attributes":{"version":"1","newestVersion":"2"}}},
+		"fallout4":{
+		  "BakaFramework-43627-5-0-0":{"id":"x","state":"installed","installationPath":"BakaFramework 43627 5.0.0 2026-09-22T22-55Z arQOmDNId",
+		     "attributes":{"modId":43627,"version":"4.9.0","newestVersion":"5.0.0","name":"Baka \"F\" \u00e9","enabled":true,"x":[1.5e3,-2]}},
+		  "Plain":{"installationPath":"Plain","attributes":{"version":"1.0"}}}}}})");
+	CHECK(vm.size() == 2);
+	CHECK(vm.contains("bakaframework 43627 5.0.0 2026-09-22t22-55z arqomdnid"));
+	CHECK(vm.at("bakaframework 43627 5.0.0 2026-09-22t22-55z arqomdnid").newest == "5.0.0");
+	CHECK(vm.at("plain").version == "1.0" && vm.at("plain").newest.empty());
+	CHECK(M::VortexStateMods("{\"persistent\":{\"mods\":{\"fallout4\":{\"a\":{").empty());  // cut short: nothing, no crash
+	CHECK(M::VortexStateMods("").empty());
 }
 
 int main(int argc, char** argv)

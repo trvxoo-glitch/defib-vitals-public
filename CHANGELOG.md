@@ -29,7 +29,9 @@ Not yet tested in game.
     copy of the same DLL and checks each one with the same F4SE rules. If one would run on your game, the report names
     that mod and tells you to make it win the file conflict. If none would, it says so, which means the mod itself has no
     version for your game yet. Under MO2 it also says which mod's copy the game is using.
-  - **MO2's update check.** When MO2 already knows a newer version of the mod is on Nexus (its meta.ini), the report says so.
+  - **Your mod manager's update check.** Vortex and MO2 ask Nexus for each mod's newest version and save the answer on
+    your PC (Vortex: its state backups in `%APPDATA%\Vortex\temp\state_backups_full`; MO2: each mod's meta.ini). When
+    that answer is newer than the version you have, the report says so. Vitals itself still never goes online.
   - **Compiler date check.** No DLL can be older than the linker that built it (Visual Studio 2017 to 2022 each have a
     release date). A build date older than its own linker, or a file date reset by an archive, is no longer used as
     proof of an Old-Gen mod. When the linker is newer than April 2024, the report says the DLL was built after the
