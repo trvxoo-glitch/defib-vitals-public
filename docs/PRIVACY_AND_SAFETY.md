@@ -21,7 +21,7 @@ Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vi
 **Nothing.** It has no network code. No telemetry, no update check, no account. Files never leave your PC unless you send them.
 
 ## The share pack (opt-in, off by default)
-If you pick **Make a share pack I can send** in the installer (or set `bSharePack=1`), Vitals writes
+If you pick **Yes, help improve Vitals** in the installer (or set `bSharePack=1`), Vitals writes
 `Vitals-Share.zip` next to the report after each session. It is for you to send if you want to help find broken mods;
 Vitals never sends it.
 

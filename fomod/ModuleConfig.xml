@@ -40,7 +40,7 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 							<description>Vitals keeps everything on your PC, as always. You can change your mind later: reinstall and pick the other option, or set bSharePack=1 in Vitals.ini.</description>
 							<typeDescriptor><type name="Recommended" /></typeDescriptor>
 						</plugin>
-						<plugin name="Make a share pack I can send">
+						<plugin name="Yes, help improve Vitals">
 							<description>Vitals saves a share pack after each session: its own reports, F4SE's logs, your load order, a few game settings, a short PC summary (Windows, CPU, RAM, GPU) and your newest crash logs, in one zip (Vitals-Share.zip) in your Vitals folder.
 
 Before anything goes into the pack, Vitals scrubs personal details out of every file: your Windows user name and PC name, email and IP addresses, account ids, API keys and private folder paths are replaced with placeholders, and text read from game memory in crash logs is removed. Mod names stay. A scrub-report.txt inside lists how many of each were removed.

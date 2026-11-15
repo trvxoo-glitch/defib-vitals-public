@@ -42,7 +42,7 @@ Your Windows user name is replaced with `<user>` in every file, so the files are
 
 ## Share pack
 
-Optional, off unless you picked **Make a share pack I can send** in the installer (or set `bSharePack=1` in
+Optional, off unless you picked **Yes, help improve Vitals** in the installer (or set `bSharePack=1` in
 `Vitals.ini`). After each session Vitals writes `Vitals-Share.zip` next to the report: the report, F4SE's logs, your
 load order, a few game settings, a short PC summary and recent crash logs, with your user name, PC name, emails, IP
 addresses, keys and private folder paths removed. Open it to see exactly what is inside; `scrub-report.txt` says how

@@ -5,7 +5,7 @@ All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a pers
 ## 0.4.0 (share pack, Copy report)
 Not yet tested in game.
 - **Optional share pack, off unless you choose it.** The installer has a second page, *Help improve Vitals*, with
-  **No thanks** selected. If you pick **Make a share pack I can send**, Vitals writes `Vitals-Share.zip` next to the
+  **No thanks** selected. If you pick **Yes, help improve Vitals**, Vitals writes `Vitals-Share.zip` next to the
   report after each session: its own reports and logs, F4SE's logs, your load order, 22 named game INI settings, a short
   PC summary (Windows, CPU, cores, RAM, GPU), up to 3 recent crash logs, a count-only summary of the Papyrus log, and
   (with Vortex) which mod installed each F4SE DLL. **Every file is scrubbed first:** your user name, PC name, emails, IP

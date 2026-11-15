@@ -279,7 +279,7 @@ class PackageTests(unittest.TestCase):
             self.assertIn("bSharePack=0", open(marker, encoding="utf-8").read())
             # the opt-in is never pre-selected
             cfg = open(os.path.join(out, "fomod", "ModuleConfig.xml"), encoding="utf-8").read()
-            self.assertIn("Make a share pack I can send", cfg)
+            self.assertIn("Yes, help improve Vitals", cfg)
             # a marker anywhere else would switch sharing on for everyone
             stray = os.path.join(out, "00 Core", "F4SE", "Plugins", "Vitals", "share-optin.txt")
             open(stray, "w").write("x")
