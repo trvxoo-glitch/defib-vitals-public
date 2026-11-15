@@ -203,6 +203,19 @@ static void PeTests()
 	const auto good = MakePe({ "F4SEPlugin_Load", "F4SEPlugin_Query" });
 	auto       pe = F::ParsePe(good);
 	CHECK(pe.ok && pe.exports.size() == 2 && pe.exports.contains("F4SEPlugin_Query") && pe.timestamp == 0x66000000);
+	CHECK(!pe.reproducible);
+	{
+		// a /Brepro build: debug directory (data directory 6) with an entry of type 16; its timestamp is a hash, not a date
+		auto d = good;
+		Put<std::uint32_t>(d, 0x98 + 160, 0x13A0);  // debug directory RVA
+		Put<std::uint32_t>(d, 0x98 + 164, 28);      // size: one entry
+		Put<std::uint32_t>(d, 0x400 + (0x13A0 - 0x1000) + 12, 16);
+		CHECK(F::ParsePe(d).reproducible);
+		Put<std::uint32_t>(d, 0x400 + (0x13A0 - 0x1000) + 12, 2);  // CodeView: a normal build
+		CHECK(!F::ParsePe(d).reproducible);
+		Put<std::uint32_t>(d, 0x98 + 164, 0xFFFFFFFF);  // absurd size: ignored, no crash
+		CHECK(!F::ParsePe(d).reproducible);
+	}
 	// e_lfanew near 4 GB: 32-bit "peOff + 24" wrapped to a small number in build 40
 	for (const std::uint32_t bad : { 0xFFFFFFF0u, 0xFFFFFFFFu, 0xFFFFFFE8u, 0x7FFFFFFFu, 0x13FCu, 0x13FDu }) {
 		auto d = good;

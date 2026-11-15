@@ -184,6 +184,25 @@ def check_load_order(game, plugins_txt):
 NEXT_GEN = dt.date(2024, 4, 25)  # the update that introduced F4SEPlugin_Version
 
 
+def _is_reproducible(path, head, pe):
+    """True when the DLL is a reproducible build (/Brepro): its timestamp is a hash, not a date (debug entry type 16)."""
+    opt = pe + 24
+    if struct.unpack_from("<H", head, opt)[0] != 0x20B:
+        return False
+    rva, size = struct.unpack_from("<II", head, opt + 160)
+    if not rva or size > 4096:
+        return False
+    nsec, osz = struct.unpack_from("<H", head, pe + 6)[0], struct.unpack_from("<H", head, pe + 20)[0]
+    for i in range(nsec):
+        vs, va, rs, ro = struct.unpack_from("<IIII", head, opt + osz + i * 40 + 8)
+        if va <= rva < va + max(vs, rs):
+            with open(path, "rb") as f:
+                f.seek(rva - va + ro)
+                blob = f.read(size)
+            return any(struct.unpack_from("<I", blob, k + 12)[0] == 16 for k in range(0, len(blob) - 27, 28))
+    return False
+
+
 def age_note(path):
     """Second check for 'outdated': when was the DLL built (COFF timestamp), else the file date, vs the Next-Gen update."""
     try:
@@ -191,11 +210,12 @@ def age_note(path):
             d = f.read(4096)
         pe = struct.unpack_from("<I", d, 0x3C)[0]
         ts = struct.unpack_from("<I", d, pe + 8)[0]
+        repro = _is_reproducible(path, d, pe)
     except (OSError, struct.error):
         return ""
     weak = False
     built = None
-    if ts:
+    if ts and not repro:
         try:
             built = dt.datetime.fromtimestamp(ts, dt.timezone.utc).date()
         except (OverflowError, OSError, ValueError):
@@ -205,8 +225,10 @@ def age_note(path):
         weak = True
     what = "Its file is dated" if weak else "Built"
     if built < NEXT_GEN:
-        return f" {what} {built}, before the April 2024 Next-Gen update, so it {'was probably' if weak else 'was'} made for Old-Gen 1.10.163 or earlier and is outdated."
-    return f" {what} {built}, after the Next-Gen update, so it may still be maintained and only lack the new version data: check the mod page for a newer file."
+        return (f" {what} {built}, before the April 2024 Next-Gen update, so it {'was probably' if weak else 'was most likely'} made for Old-Gen 1.10.163 or earlier."
+                " If it is already the newest file on its mod page, its author has not released a version for your game yet.")
+    return (f" {what} {built}, after the Next-Gen update, so it may still be maintained and only lack the new version data."
+            " If it is already the newest file on its mod page, the author has not added Next-Gen support yet.")
 
 
 ADVICE = {

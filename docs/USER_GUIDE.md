@@ -64,7 +64,7 @@ Vitals reads the DLL's own F4SE data and applies the same rules F4SE uses, so th
 
 | Reason | Meaning | What to do |
 | --- | --- | --- |
-| plugin without F4SEPlugin_Version data | F4SE 0.7.x skips plugins that only have the old entry point. Vitals adds when the DLL was built: before 25 April 2024 means it was made for Old-Gen 1.10.163 (outdated); after that date it may be maintained and only lack the new data | Look for an NG/AE version or a port. Many have one on Nexus under a different page |
+| plugin without F4SEPlugin_Version data | F4SE 0.7.x skips plugins that only have the old entry point. Vitals adds when the DLL was built: before 25 April 2024 means it was most likely made for Old-Gen 1.10.163; after that date it may be maintained and only lack the new data. Either way, if it is already the newest file on the mod page, the author has not released a version for your game yet and nothing is wrong with your setup | Look for an NG/AE version or a port. Many have one on Nexus under a different page |
 | built for Next-Gen 1.10.980/984 only | Made between April and November 2024 | Look for an update; F4SE 0.7.5+ needs Anniversary flags |
 | built for other game versions only: ... | The DLL lists specific builds and yours is not one | Update the mod, or use the game version it supports |
 | built for Next-Gen/Anniversary only | You are on Old-Gen 1.10.163 | Get the Old-Gen file of the mod |

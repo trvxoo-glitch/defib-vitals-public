@@ -112,7 +112,7 @@ namespace Vitals
 			sys_days   day{};
 			const auto now = system_clock::now();
 			const auto built = sys_seconds{ seconds{ a_pe.timestamp } };
-			if (a_pe.timestamp && built >= sys_days{ year{ 2010 } / January / 1 } && built <= now + hours{ 24 }) {
+			if (a_pe.timestamp && !a_pe.reproducible && built >= sys_days{ year{ 2010 } / January / 1 } && built <= now + hours{ 24 }) {
 				day = floor<days>(built);
 			} else {
 				std::error_code ec;
@@ -134,12 +134,12 @@ namespace Vitals
 			if (day < nextGen) {
 				a.kind = Age::Kind::before;
 				a.group = "pre";
-				a.text = std::format(" {}{}, before the April 2024 Next-Gen update, so {} made for Old-Gen 1.10.163 or earlier and is outdated.", what, when,
-					weak ? "it was probably" : "it was");
+				a.text = std::format(" {}{}, before the April 2024 Next-Gen update, so {} made for Old-Gen 1.10.163 or earlier. If it is already the newest file on its mod page, its author has not released a version for your game yet.", what, when,
+					weak ? "it was probably" : "it was most likely");
 			} else {
 				a.kind = Age::Kind::after;
 				a.group = "post";
-				a.text = std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data: check the mod page for a newer file.", what, when);
+				a.text = std::format(" {}{}, after the Next-Gen update, so it may still be maintained and only lack the new version data. If it is already the newest file on its mod page, the author has not added Next-Gen support yet.", what, when);
 			}
 			return a;
 		}
@@ -409,9 +409,9 @@ namespace Vitals
 					if (e.text.back() == '.')
 						e.text.pop_back();
 					if (age.kind == Age::Kind::after)
-						e.advice = "Check the mod page for a newer file: the author may have released one with Next-Gen/Anniversary support.";
+						e.advice = "Check the mod page for a newer file. If you already have the newest, nothing is wrong with your setup: F4SE 0.7.x skips this build, so the mod does not work on this game version for now.";
 					else if (age.kind == Age::Kind::before)
-						e.advice = "Look for an updated version of this mod for your game version, or a replacement. Until then its features (and mods that need it) will not work.";
+						e.advice = "Check the mod page for a version made for your game version. If this is already the newest file, nothing is wrong with your setup: that mod does not support this game version yet, so look for a replacement. Until then its features (and mods that need it) will not work.";
 				}
 				const bool notPlugin = why == Loader::Why::not_plugin;
 				// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
@@ -929,8 +929,8 @@ namespace Vitals
 			if (!dllShown.empty()) {
 				// Plugins F4SE skips for lack of version data are listed together, split by when they were built.
 				struct Grp { const char* name; const char* title; std::string list; std::size_t n{ 0 }; };
-				std::array<Grp, 4> groups{ { { "pre", "Made before the April 2024 Next-Gen update (outdated)", {}, 0 },
-					{ "post", "Built after that update (the mod page may have a newer file)", {}, 0 },
+				std::array<Grp, 4> groups{ { { "pre", "Built before April 2024 (made for Old-Gen)", {}, 0 },
+					{ "post", "Built after April 2024, but without Next-Gen data (check the mod page)", {}, 0 },
 					{ "unknown", "Build date unknown", {}, 0 },
 					{ "", "Other reasons (see the report)", {}, 0 } } };
 				for (const auto* p : dllShown)

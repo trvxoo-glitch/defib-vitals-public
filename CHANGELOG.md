@@ -14,6 +14,11 @@ Not yet tested in game.
   how many of each. **Vitals still has no network code:** you decide whether to send the zip, by uploading it on the share page (https://vitals-share.vitalsguy.workers.dev) or attaching it to a GitHub issue. Turn it off by deleting
   `Vitals\share-optin.txt` or setting `bSharePack=0`; the next launch deletes the pack. Full list and reasons:
   `docs/PRIVACY_AND_SAFETY.md`.
+- **Fairer wording for plugins F4SE skips, and a wrong build date fixed.** A Nexus user reported a current mod flagged
+  "built 2020, outdated". Reproducible builds (`/Brepro`) store a hash where the build date goes, and it can look like any
+  date; Vitals now spots them (a type 16 debug entry) and uses the file date instead, saying it is weaker. The word
+  "outdated" is gone: the report now says that if the file is already the newest on its mod page, the author has not
+  released a version for your game yet and nothing is wrong with your setup.
 - **Copy report** button in the start-up box: copies the whole report to the clipboard and leaves the box open.
 - **Knowledge rules can name game versions** (`oldfile@NG,AE`). The old main-menu and font-file rules now apply only
   to Next-Gen and Anniversary, where those files break; Old-Gen players no longer see them. The offline preflight

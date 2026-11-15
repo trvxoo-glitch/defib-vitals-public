@@ -42,6 +42,7 @@ namespace Vitals::Formats
 	{
 		bool                                 ok{ false };
 		std::uint32_t                        timestamp{ 0 };  // COFF TimeDateStamp: when the DLL was built (0/garbage in reproducible builds)
+		bool                                 reproducible{ false };  // a reproducible build (/Brepro): the timestamp is a hash, not a date
 		std::string                          error;
 		std::map<std::string, std::uint32_t> exports;  // name -> RVA
 		std::vector<PeSection>               sections;
@@ -93,6 +94,19 @@ namespace Vitals::Formats
 			pe.sections.push_back(s);
 		}
 		pe.ok = true;
+		{
+			// Reproducible builds (/Brepro) fill the timestamp with a hash that can look like any date. They say so with a
+			// debug directory entry of type 16 (IMAGE_DEBUG_TYPE_REPRO).
+			std::uint32_t dbgRva = 0, dbgSize = 0;
+			Get(d, opt + 160, dbgRva);
+			Get(d, opt + 164, dbgSize);
+			if (const auto dbg = dbgRva ? RvaToOff(pe, dbgRva) : std::nullopt; dbg && dbgSize <= 4096)
+				for (std::uint32_t k = 0; k + 28 <= dbgSize; k += 28) {
+					std::uint32_t type = 0;
+					if (Get(d, *dbg + k + 12, type) && type == 16)
+						pe.reproducible = true;
+				}
+		}
 		const auto eo = expRva ? RvaToOff(pe, expRva) : std::nullopt;
 		if (!eo)
 			return pe;

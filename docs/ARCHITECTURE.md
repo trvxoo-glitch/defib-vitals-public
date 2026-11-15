@@ -86,7 +86,7 @@ and a message box there appears before a load-order crash at the main menu.
    CommonLib blocks) is a problem too, because F4SE still loads plugins that then show an error and close the game.
 5. **Build date.** For plugins with no `F4SEPlugin_Version` data, the COFF build timestamp (file date if the
    timestamp is zero or implausible, as in reproducible builds) is compared with the Next-Gen update (2024-04-25):
-   before = outdated, after = may still be maintained (and the advice points at the mod page). Issues get a `group`
+   before = made for Old-Gen, after = may still be maintained (and the advice points at the mod page). Issues get a `group`
    so the message box can list them together. A DLL that is not running is a `warning` (the mod does not work);
    `problem` is kept for what may crash the game.
 6. **Load order.** Base masters, then `Fallout4.ccc` entries present in Data, then active (`*`) lines of

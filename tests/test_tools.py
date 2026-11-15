@@ -314,6 +314,22 @@ class AgeNoteTests(unittest.TestCase):
             self.assertIn("Built 2025-03-01, after the Next-Gen update", defib_preflight.age_note(self._dll(tmp, new)))
             # a reproducible build has a meaningless timestamp: fall back to the file date and say it is weaker
             self.assertIn("Its file is dated", defib_preflight.age_note(self._dll(tmp, 0xDEADBEEF)))
+            # the wording does not call a file outdated: the newest file on a mod page may simply lack Next-Gen support
+            self.assertNotIn("outdated", defib_preflight.age_note(self._dll(tmp, old)))
+            self.assertIn("already the newest file", defib_preflight.age_note(self._dll(tmp, old)))
+            # a /Brepro build (debug entry type 16) has a hash for a timestamp: do not trust it
+            repro = self._dll(tmp, new)
+            d = bytearray(open(repro, "rb").read())
+            d = bytearray(d + bytes(0x2000))
+            struct.pack_into("<H", d, 0x86, 1)
+            struct.pack_into("<H", d, 0x94, 0xF0)
+            struct.pack_into("<H", d, 0x98, 0x20B)
+            struct.pack_into("<II", d, 0x98 + 160, 0x1000, 28)
+            sec = 0x98 + 0xF0
+            struct.pack_into("<IIII", d, sec + 8, 0x1000, 0x1000, 0x1000, 0x400)
+            struct.pack_into("<I", d, 0x400 + 12, 16)
+            open(repro, "wb").write(bytes(d))
+            self.assertIn("Its file is dated", defib_preflight.age_note(repro))
 
 
 class LooseSetupTests(unittest.TestCase):
