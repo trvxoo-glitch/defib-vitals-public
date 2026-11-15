@@ -16,7 +16,7 @@ One small F4SE plugin. Install it, start the game once, and read
   engine functions newly hooked, and by which DLL.
 
 A message box appears at start-up **only** when something new needs attention: a problem that may crash the game,
-or an F4SE plugin that is installed but not running. Each item is shown once. Everything else stays in the report.
+or an F4SE plugin that is installed but not running. The box shows on every launch until you fix the problem or press **Don't show**. Everything else stays in the report.
 
 Vitals is part of **Defib**, a project to bring abandoned F4SE mods back to life on every game version. The same
 plugin records what a mod porter needs: which engine functions are hooked and by whom, whether the Address Library
@@ -73,7 +73,7 @@ PROBLEMS
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `bDoctor` | 1 | The plugin doctor and `Vitals-Report.txt` |
-| `iPopupMode` | 1 | 0 never, 1 when there is something new, 2 every launch |
+| `iPopupMode` | 1 | 0 never, 1 every launch while there is something to list (2 does the same) |
 | `iKeepSessions` | 5 | Earlier sessions kept in `Vitals\history` |
 | `bEnvironmentReport` | 1 | Game build, F4SE, every DLL and whether it loaded |
 | `bAddressCheck` | 1 | Check the engine addresses in `Vitals\addresses\*.txt`; find hooked functions |

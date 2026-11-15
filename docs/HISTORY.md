@@ -23,6 +23,7 @@ workbench") was about building it and proving it right on two game builds.
 | census | 2026-11-13 | First runs of 0.3.0 on both builds: 1.11.240 A StoryWealth 68 minutes with several saves and no crash, doctor listed 20 DLLs F4SE silently skips ("no version data"), 16 built before April 2024 and 4 after; 1.10.163 near-vanilla clean with 0 problems. Start-up box tested; button labels shortened to fit |
 | 0.3.0 | 2026-11-13 | Vitals becomes a public plugin doctor: plain-language report, load-order and master checks, knowledge rules, session history, hook owners, FOMOD installer, offline preflight |
 | 0.3.1 | 2026-11-13 | Three outside code reviews of 0.3.0. Confirmed findings fixed: skipped plugins were called crash risks, the box could hide a returning problem, the loader rules missed `compatibleVersions` and the minimum F4SE version. The loader rules moved into one tested header shared with the scanner through `tests/loader_cases.txt`. Then three reviews of build 40: Vitals reads the Address Library itself (CommonLib's lookup could end the game when the file was missing or broken), DLL/AL/plugin readers moved to a fuzzed header after a 4 GB offset could wrap a bounds check, masters checked against the real load order, popup keys with spaces, user-name redaction limited to paths |
+| 0.3.2 | 2026-11-15 | The start-up box shows on every launch until the player presses Don't show; Continue no longer hides it |
 
 ## What Stage 0 found (lessons worth keeping)
 

@@ -7,8 +7,8 @@
 | No `Documents\My Games\Fallout4\F4SE\Vitals` folder | Vitals did not load. Check `f4se.log` for `Vitals.dll`. You need F4SE for your game version; Vitals supports 1.10.163, 1.10.980/984 and 1.11.137 to 1.11.240 |
 | `f4se.log`: Vitals "disabled, incompatible with current runtime" | A game patch newer than this Vitals. Vitals lists the exact builds it supports on purpose, so F4SE skips it instead of crashing. Wait for an update |
 | I pressed "Don't show" and want the plugin list back | Delete `popup_disabled.txt` in the Vitals output folder |
-| The message box every launch | `iPopupMode=2`, a problem keeps coming and going (for example a plugin toggled by a script), or you pressed **Stop game** (the box then shows again on purpose). Set `iPopupMode=0` to silence it |
-| No message box although the report lists problems | `iPopupMode=1` shows each item once; warnings other than plugins that are not running never open it. Delete `popup_seen.txt` to see it again |
+| The message box every launch | Normal: it shows every launch while there is something to list, and **Continue** does not silence it. Press **Don't show** to silence plugins that are not running (problems that may crash the game still show), fix the problem, or set `iPopupMode=0` |
+| No message box although the report lists problems | `iPopupMode=0`, you pressed **Don't show** earlier (delete `popup_disabled.txt`), or the items are warnings other than plugins that are not running, which never open it |
 | `Vitals-Report.txt` has no ADDRESS CHECK section | The game did not reach the main menu, or `bAddressCheck=0` |
 | Address check: many `differs` or `patched_in_place` | Another mod patched those functions in place (`patched_in_place`: switched off with a return stub), or the address list does not match your build. Report it with `Vitals.jsonl` |
 | Address check: `resolved_no_baseline` on Old-Gen | Expected. The Steam 1.10.163 exe is encrypted on disk. Optional: capture a local baseline once (`bCaptureBaseline=1`, F4SE + Vitals only, then back to 0) |

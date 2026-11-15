@@ -2,6 +2,13 @@
 
 All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed.
 
+## 0.3.2 (start-up box)
+Not yet tested in game.
+- **The start-up box now shows on every launch until you press Don't show or fix the problem.** Before, pressing
+  Continue marked the items as seen and the box stayed away next time. Now only **Don't show** silences plugins that
+  are not running; problems that may crash the game always show. **Continue** and **Stop game** change nothing.
+  `iPopupMode` 1 and 2 now behave the same. `popup_seen.txt` is no longer written or read and can be deleted.
+
 ## 0.3.1 (code review fixes)
 Fixes from three outside code reviews of 0.3.0, then from three more reviews of build 40.
 Tested in game 2026-11-15: 1.11.240 with A StoryWealth (708 plugins, 59 of 72 F4SE DLLs running, saves loaded and saved, no crash, no new false warnings), 1.10.163 with the Address Library (clean, saves loaded and saved), 1.10.163 with the Address Library file missing and only Vitals installed (game reached the menu, the report named the missing file and skipped the address check), and "Don't show" for a skipped DLL with a space in its name (remembered across a restart). 1.10.980/984 is built but untested. A damaged-DLL file was not tried in game; a test of it runs in CI.

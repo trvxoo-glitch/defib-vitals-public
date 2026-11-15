@@ -116,15 +116,14 @@ through the `Vitals_Breadcrumb` export (see `include/Vitals/Breadcrumbs.h`).
 Rewritten on every F4SE event (written to `status.json.tmp` and renamed over it, so a reader never sees half a file), for scripts such as `tools/smoke_test.ps1`: `vitals_version`, `pid` (the game's process id, so the smoke test stops only that game), `game_version`,
 `last_phase`, `main_menu_ready`, `save_or_new_game_loaded`, `phases` (list of `{phase, ms}`).
 
-## popup_seen.txt, popup_disabled.txt
+## popup_disabled.txt
 
-Both start with the line `# vitals-popup-keys 2`, then hold one `category:subject` key per line, read back exactly
+Starts with the line `# vitals-popup-keys 2`, then holds one `category:subject` key per line, read back exactly
 as written (DLL names may contain spaces or `;`). Other lines starting with `#` are comments. Files without the first
 line are from 0.3.0 or earlier 0.3.1 test builds and are still read (keys split on `;`).
 
-`popup_seen.txt`: items the box has shown and that are still present. With `iPopupMode=1` the box opens only for an
-item not in this file. Items that go away are dropped, so they warn again if they come back. Pressing **Stop game**
-records nothing, so the box shows again on the next launch.
+The box itself remembers nothing: it opens on every launch while it has something to list. A `popup_seen.txt` left
+by 0.3.1 is no longer used and can be deleted.
 
 `popup_disabled.txt`: written by **Don't show** with the `plugin_dll` items the box listed. Those never open the box
 again; problems that may crash the game (`problem` severity) always do. A 0.3.0 file (a sentence, no keys, no first

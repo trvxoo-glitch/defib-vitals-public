@@ -92,7 +92,7 @@ and a message box there appears before a load-order crash at the main menu.
    give `[Archive] bInvalidateOlderFiles=1` and an empty `sResourceDataDirsFinal=`. They are read with
    `GetPrivateProfileStringW`, as the game reads them (UTF-16 or ANSI; under MO2 through its virtual file system).
 8. Issues are emitted, the report is written, and the message box is shown when `Rules::DecidePopup` finds an item
-   not shown before (problems, plus plugins that are not running and not muted; see FILE_FORMATS.md). The box
+   to list (problems, plus plugins that are not running and not muted; see FILE_FORMATS.md). The box
    is a standard Abort/Retry/Ignore message box whose buttons a short-lived CBT hook relabels (Stop game / Don't show /
    Continue; no Cancel, so Esc cannot stop the game). Don't show writes the listed plugins to `popup_disabled.txt`
    (a versioned key file, read back verbatim, so DLL names with spaces work).

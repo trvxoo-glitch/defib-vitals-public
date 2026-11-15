@@ -26,7 +26,6 @@ For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHI
 | `history\Vitals-YYYYMMDD-HHMMSS.jsonl` | Earlier sessions (`iKeepSessions`, default 5) |
 | `breadcrumbs.bin`, `breadcrumbs.prev.bin` | Which port hook ran last (only useful with Defib ports) |
 | `status.json` | How far the game got (for scripts) |
-| `popup_seen.txt` | Which problems the message box already showed |
 | `hashes.txt` | Remembered SHA-256 of each F4SE DLL, so unchanged DLLs are not read again (safe to delete) |
 
 Your Windows user name is replaced with `<user>` in every file, so the files are safe to share.
@@ -114,7 +113,7 @@ All in `Data\F4SE\Plugins\Vitals.ini`, each with a comment. Reinstalling replace
 The most useful:
 
 * `iPopupMode=0` turns the message box off (the report is still written). The box's **Don't show** button stops it listing those plugins again; problems that may crash the game still show.
-* `iPopupMode=2` shows it every launch while you fix a load order.
+* `iPopupMode=1` (default) shows the box on every launch while there is something to list. **Continue** and **Stop game** change nothing; only **Don't show** silences plugins. `iPopupMode=2` behaves the same.
 * `iKeepSessions=10` keeps more history.
 
 ## Comparing launches
