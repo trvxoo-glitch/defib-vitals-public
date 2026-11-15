@@ -15,15 +15,23 @@ Vitals is meant to be left installed, so this page says plainly what it reads, w
 - Engine addresses listed in `Vitals\addresses\*.txt`, to compare their first bytes.
 
 ## What it writes
-Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vitals.jsonl` (plus kept history), `breadcrumbs.bin`, `status.json`, `popup_disabled.txt`, `hashes.txt`, and, only if you turn them on, local baselines and the share pack (`Vitals-Share.zip`, `share-id.txt`). Nothing is written anywhere else. The **Copy report** button in the start-up box puts the report on the clipboard when you press it.
+Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vitals.jsonl` (plus kept history), `breadcrumbs.bin`, `status.json`, `popup_disabled.txt`, `hashes.txt`, and, only if you turn them on, local baselines and the share pack (`Vitals-Share.zip`, `share-id.txt`, `share-sent.txt`). Nothing is written anywhere else. The **Copy report** button in the start-up box puts the report on the clipboard when you press it.
 
 ## What it sends
-**Nothing.** It has no network code. No telemetry, no update check, no account. Files never leave your PC unless you send them.
+**Nothing, unless you opt in to the share pack.** No telemetry, no update check, no account. The only network code in Vitals
+sends the scrubbed share pack described below, and it runs only when you picked **Yes, help improve Vitals** (or set
+`bSharePack=1`) and have not set `bShareSend=0`.
 
 ## The share pack (opt-in, off by default)
 If you pick **Yes, help improve Vitals** in the installer (or set `bSharePack=1`), Vitals writes
-`Vitals-Share.zip` next to the report after each session. It is for you to send if you want to help find broken mods;
-Vitals never sends it.
+`Vitals-Share.zip` next to the report after each session and sends it to the Vitals share server.
+
+**When it is sent.** Over HTTPS, on a background thread, to the address built into Vitals (`Share::kUploadHost`): the
+first time, when the pack holds a crash log not sent before, and otherwise at most once a week. A failed send waits 6
+hours. Each send stores the server's code in `share-sent.txt`, and the report shows it: enter it on the upload page to
+delete that pack at once. The request carries only the zip and a `Vitals/<version>` user agent. The server stores no
+IP address, account or cookie, scrubs every file a second time, and deletes packs after 90 days (`server/README.md`).
+Set `bShareSend=0` to keep writing the zip but never send it.
 
 **What is in it.** A fixed list, never a whole folder:
 

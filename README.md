@@ -19,8 +19,8 @@ A message box appears at start-up **only** when something needs attention: a pro
 or an F4SE plugin that is installed but not running. The box shows on every launch until you fix the problem or press **Don't show**, and **Copy report** puts the whole report on the clipboard for a comment or bug report. Everything else stays in the report.
 
 **Optional: help find broken mods.** The installer's second page offers a share pack (off unless you pick it): a zip
-of your logs with your user name, PC name, emails, IP addresses, keys and private folder paths scrubbed out, for you
-to send if you want to. Vitals never sends anything. See [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
+of your logs with your user name, PC name, emails, IP addresses, keys and private folder paths scrubbed out, that
+Vitals sends to its share server (first time, after a new crash, at most weekly). Nothing is sent without that opt-in. See [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
 Vitals is part of **Defib**, a project to bring abandoned F4SE mods back to life on every game version. The same
 plugin records what a mod porter needs: which engine functions are hooked and by whom, whether the Address Library

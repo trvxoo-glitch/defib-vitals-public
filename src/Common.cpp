@@ -70,6 +70,7 @@ namespace Vitals
 		g_settings.popupMode = static_cast<std::uint32_t>(std::clamp(get(L"iPopupMode", 1), 0, 2));
 		g_settings.keepSessions = static_cast<std::uint32_t>(std::clamp(get(L"iKeepSessions", 5), 0, 50));
 		g_settings.sharePack = std::clamp(get(L"bSharePack", -1), -1, 1);
+		g_settings.shareSend = get(L"bShareSend", 1) != 0;
 	}
 
 	// ---------------- paths ----------------

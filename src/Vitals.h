@@ -19,6 +19,7 @@ namespace Vitals
 		bool          doctor{ true };           // plugin doctor: why DLLs were refused, load-order masters, known problems
 		std::uint32_t popupMode{ 1 };           // 0 = never, 1 = when the problem list changes, 2 = every launch
 		std::uint32_t keepSessions{ 5 };        // copies of earlier Vitals.jsonl kept in Vitals\history (0 = none)
+		bool          shareSend{ true };          // send the share pack when sharing is on (bShareSend)
 		int           sharePack{ -1 };          // -1 = follow the installer (Vitals\share-optin.txt), 0 = off, 1 = on
 	};
 	const Settings& GetSettings();

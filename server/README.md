@@ -1,7 +1,7 @@
 # Vitals share-pack server
 
 The upload page and private storage for share packs: one Cloudflare Worker and one private R2 bucket. Vitals itself
-has no network code; this is where a player can choose to send the `Vitals-Share.zip` that Vitals wrote for them.
+sends opted-in players' `Vitals-Share.zip` here automatically (`src/Share.cpp`); the upload page is for sending one by hand.
 
 | File | What it is |
 | --- | --- |
@@ -41,8 +41,8 @@ You need a free Cloudflare account and Node.js. Run these in this folder.
    `npx wrangler secret put READ_KEY` and `npx wrangler secret put SALT_KEY`
 6. `npx wrangler deploy`. It prints the address (`https://vitals-share.<your-subdomain>.workers.dev`).
 
-Then put that address in Vitals' report text (`src/Share.cpp`, `ShareReportText`), the FOMOD page text and the Nexus
-description, and release Vitals. Check the commands against Cloudflare's current documentation when you run them:
+Then put the host name (`vitals-share.<your-subdomain>.workers.dev`) in `Share::kUploadHost` in
+`include/Vitals/Share.h`, and release Vitals. Until then Vitals only writes the zip. Check the commands against Cloudflare's current documentation when you run them:
 Wrangler's command names change between versions.
 
 ## Reading packs

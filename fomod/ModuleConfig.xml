@@ -37,7 +37,7 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 				<group name="Help improve Vitals (optional)" type="SelectExactlyOne">
 					<plugins order="Explicit">
 						<plugin name="No thanks">
-							<description>Vitals keeps everything on your PC, as always. You can change your mind later: reinstall and pick the other option, or set bSharePack=1 in Vitals.ini.</description>
+							<description>Vitals keeps everything on your PC and sends nothing. You can change your mind later: reinstall and pick the other option, or set bSharePack=1 in Vitals.ini.</description>
 							<typeDescriptor><type name="Recommended" /></typeDescriptor>
 						</plugin>
 						<plugin name="Yes, help improve Vitals">
@@ -45,7 +45,7 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 
 Before anything goes into the pack, Vitals scrubs personal details out of every file: your Windows user name and PC name, email and IP addresses, account ids, API keys and private folder paths are replaced with placeholders, and text read from game memory in crash logs is removed. Mod names stay. A scrub-report.txt inside lists how many of each were removed.
 
-Nothing is ever sent automatically: Vitals has no network code. You can open the zip and read it first, then share it yourself if you want to (a GitHub issue, or a link in a Nexus bug report).
+Vitals then sends the scrubbed zip to the Vitals share server over HTTPS: the first time, after a new crash, and at most once a week otherwise. The server checks it again and stores no IP address or account; packs are deleted after 90 days, and the code in your Vitals report deletes yours sooner. Only Vitals' own maintainers can read packs, and only counts across many players are ever published. To keep the zip on your PC without sending it, set bShareSend=0 in Vitals.ini.
 
 Turn it off at any time by deleting Data\F4SE\Plugins\Vitals\share-optin.txt or setting bSharePack=0 in Vitals.ini; Vitals then deletes its pack at the next launch. Privacy details: docs\PRIVACY_AND_SAFETY.md (also on GitHub).</description>
 							<files>

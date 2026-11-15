@@ -6,13 +6,18 @@
 
 #include <intrin.h>
 #include <random>
+#include <sstream>
 
 // Share pack (opt-in, off unless the player chose it in the installer or set bSharePack=1).
 //
 // Writes Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Share.zip: a fixed list of files that explain why mods fail,
 // each one scrubbed of personal details (include/Vitals/Scrub.h), plus summaries in place of raw files where a raw file
-// would carry more than needed (include/Vitals/Share.h). Vitals has no network code: the player decides whether to send
-// the zip and where. The full list and the reasons are in docs/PRIVACY_AND_SAFETY.md.
+// would carry more than needed (include/Vitals/Share.h). The full list and the reasons are in docs/PRIVACY_AND_SAFETY.md.
+//
+// Sending (opted-in players only, bShareSend=0 turns it off): the finished zip is sent over HTTPS to the Vitals share
+// server (Share::kUploadHost) on the same background thread, the first time, when it holds a crash log not sent
+// before, or once a week. The server's code (it deletes the pack) goes into share-sent.txt and the report. WinHTTP is
+// loaded only when sending, from Windows' own winhttp.dll; nothing else in Vitals touches the network.
 //
 // Written twice per launch, on a background thread so the game never waits: at PostPostLoad (so the previous
 // session's log and a crash log from it are packed even if this launch never reaches the menu) and at the main menu
@@ -30,6 +35,121 @@ namespace Vitals
 		std::filesystem::path MarkerFile() { return PluginDir() / L"Vitals" / L"share-optin.txt"; }
 		std::filesystem::path PackFile() { return OutputDir() / L"Vitals-Share.zip"; }
 		std::filesystem::path IdFile() { return OutputDir() / L"share-id.txt"; }
+		std::filesystem::path SentFile() { return OutputDir() / L"share-sent.txt"; }
+
+		std::int64_t UnixNow()
+		{
+			return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		}
+
+		Share::SendState ReadSendState()
+		{
+			std::ifstream     in(SentFile(), std::ios::binary);
+			std::stringstream ss;
+			if (in)
+				ss << in.rdbuf();
+			return Share::ParseSendState(ss.str());
+		}
+
+		void SaveSendState(const Share::SendState& a_st)
+		{
+			std::ofstream(SentFile(), std::ios::binary | std::ios::trunc) << Share::FormatSendState(a_st);
+		}
+
+		// POST the zip to the share server. Returns the HTTP status (0 = no answer) and fills a_reply with the body.
+		std::uint32_t Post(const std::string& a_zip, std::string& a_reply)
+		{
+			using HINTERNET = void*;
+			using Open_t = HINTERNET(__stdcall*)(const wchar_t*, std::uint32_t, const wchar_t*, const wchar_t*, std::uint32_t);
+			using Timeouts_t = int(__stdcall*)(HINTERNET, int, int, int, int);
+			using Connect_t = HINTERNET(__stdcall*)(HINTERNET, const wchar_t*, std::uint16_t, std::uint32_t);
+			using Request_t = HINTERNET(__stdcall*)(HINTERNET, const wchar_t*, const wchar_t*, const wchar_t*, const wchar_t*, const wchar_t**, std::uint32_t);
+			using Send_t = int(__stdcall*)(HINTERNET, const wchar_t*, std::uint32_t, void*, std::uint32_t, std::uint32_t, std::uintptr_t);
+			using Receive_t = int(__stdcall*)(HINTERNET, void*);
+			using Query_t = int(__stdcall*)(HINTERNET, std::uint32_t, const wchar_t*, void*, std::uint32_t*, std::uint32_t*);
+			using Read_t = int(__stdcall*)(HINTERNET, void*, std::uint32_t, std::uint32_t*);
+			using Close_t = int(__stdcall*)(HINTERNET);
+
+			const auto lib = REX::W32::LoadLibraryW(L"winhttp.dll");
+			if (!lib)
+				return 0;
+			auto fn = [&](const char* a_name) { return REX::W32::GetProcAddress(lib, a_name); };
+			const auto open = reinterpret_cast<Open_t>(fn("WinHttpOpen"));
+			const auto timeouts = reinterpret_cast<Timeouts_t>(fn("WinHttpSetTimeouts"));
+			const auto connect = reinterpret_cast<Connect_t>(fn("WinHttpConnect"));
+			const auto request = reinterpret_cast<Request_t>(fn("WinHttpOpenRequest"));
+			const auto send = reinterpret_cast<Send_t>(fn("WinHttpSendRequest"));
+			const auto receive = reinterpret_cast<Receive_t>(fn("WinHttpReceiveResponse"));
+			const auto query = reinterpret_cast<Query_t>(fn("WinHttpQueryHeaders"));
+			const auto read = reinterpret_cast<Read_t>(fn("WinHttpReadData"));
+			const auto close = reinterpret_cast<Close_t>(fn("WinHttpCloseHandle"));
+			if (!open || !timeouts || !connect || !request || !send || !receive || !query || !read || !close)
+				return 0;
+
+			constexpr std::uint32_t kAutoProxy = 4, kDefaultProxy = 0, kSecure = 0x00800000;
+			constexpr std::uint32_t kStatusCode = 19, kFlagNumber = 0x20000000;
+			// the user agent says only "Vitals" and its version
+			const auto agent = L"Vitals/" + Widen(F4SE::GetPluginVersion().string());
+			HINTERNET  session = open(agent.c_str(), kAutoProxy, nullptr, nullptr, 0);
+			if (!session)
+				session = open(agent.c_str(), kDefaultProxy, nullptr, nullptr, 0);  // Windows before 8.1
+			if (!session)
+				return 0;
+			std::uint32_t status = 0;
+			timeouts(session, 15000, 15000, 60000, 30000);
+			const std::wstring host(Share::kUploadHost), path(Share::kUploadPath);
+			if (const auto conn = connect(session, host.c_str(), 443, 0)) {
+				if (const auto req = request(conn, L"POST", path.c_str(), nullptr, nullptr, nullptr, kSecure)) {
+					const wchar_t* headers = L"Content-Type: application/zip\r\n";
+					if (send(req, headers, static_cast<std::uint32_t>(-1), const_cast<char*>(a_zip.data()), static_cast<std::uint32_t>(a_zip.size()),
+							static_cast<std::uint32_t>(a_zip.size()), 0) &&
+						receive(req, nullptr)) {
+						std::uint32_t len = sizeof(status);
+						query(req, kStatusCode | kFlagNumber, nullptr, &status, &len, nullptr);
+						char          buf[4096];
+						std::uint32_t got = 0;
+						while (a_reply.size() < 65536 && read(req, buf, sizeof(buf), &got) && got > 0)
+							a_reply.append(buf, got);
+					}
+					close(req);
+				}
+				close(conn);
+			}
+			close(session);
+			return status;
+		}
+
+		// Sends the pack when SendReason says so. Runs on the share thread, under g_shareLock.
+		void MaybeSend(std::string_view a_when, const std::string& a_zip, const std::vector<std::string>& a_crashes)
+		{
+			if (Share::kUploadHost.empty() || !GetSettings().shareSend)
+				return;
+			auto       st = ReadSendState();
+			const auto now = UnixNow();
+			const auto reason = Share::SendReason(st, now, a_crashes);
+			// at start only a new crash is worth sending now; everything else waits for the fuller main-menu pack
+			if (reason.empty() || (a_when == "start" && reason != "new_crash"))
+				return;
+			std::string reply;
+			const auto  status = Post(a_zip, reply);
+			const auto  code = status == 200 ? Share::ReplyCode(reply) : std::string{};
+			if (code.empty()) {
+				st.lastTry = now;
+				SaveSendState(st);
+				Emit("share_upload", Json().Str("result", "failed").Str("reason", reason).UNum("http_status", status));
+				return;
+			}
+			st.lastSent = now;
+			st.lastTry = 0;
+			st.code = code;
+			for (const auto& c : a_crashes)
+				if (std::ranges::find(st.crashes, c) == st.crashes.end())
+					st.crashes.push_back(c);
+			if (st.crashes.size() > 50)
+				st.crashes.erase(st.crashes.begin(), st.crashes.end() - 50);
+			SaveSendState(st);
+			Emit("share_upload", Json().Str("result", "sent").Str("reason", reason).Str("code", code).UNum("bytes", a_zip.size()));
+		}
 		// Documents\My Games\Fallout4 (OutputDir is <that>\F4SE\Vitals)
 		std::filesystem::path MyGames() { return OutputDir().parent_path().parent_path(); }
 
@@ -341,6 +461,12 @@ namespace Vitals
 			for (const auto& [k, n] : counts)
 				scrubbed += n;
 			Emit("share_pack", Json().Str("when", a_when).UNum("files", files.size() + 1).UNum("bytes", bytes.size()).UNum("scrubbed", scrubbed).UNum("left_out", leftOut.size()));
+
+			std::vector<std::string> crashes;
+			for (const auto& [name, text] : files)
+				if (name.starts_with("crash/"))
+					crashes.push_back(name.substr(6));
+			MaybeSend(a_when, bytes, crashes);
 		}
 	}
 
@@ -370,11 +496,22 @@ namespace Vitals
 	{
 		if (!SharePackEnabled())
 			return {};
-		return "\nSHARE PACK (you chose to help improve Vitals)\n"
-		       "  Vitals-Share.zip in this folder holds this report, F4SE's logs, your load order and recent crash logs, with your\n"
-		       "  user name, PC name, emails, IP addresses, keys and private folder paths removed (scrub-report.txt inside says how many).\n"
-		       "  Nothing is sent automatically. Open the zip to check it, then share it if you want to: attach it to a GitHub issue at\n"
-		       "  https://github.com/trvxoo-glitch/defib-vitals-public/issues or link it in a bug report on the Nexus page.\n"
-		       "  Turn it off: set bSharePack=0 in Vitals.ini, or delete Data\\F4SE\\Plugins\\Vitals\\share-optin.txt.\n";
+		std::string out = "\nSHARE PACK (you chose to help improve Vitals)\n"
+		                  "  Vitals-Share.zip in this folder holds this report, F4SE's logs, your load order and recent crash logs, with your\n"
+		                  "  user name, PC name, emails, IP addresses, keys and private folder paths removed (scrub-report.txt inside says how many).\n";
+		if (Share::kUploadHost.empty()) {
+			out += "  Sending is not set up in this version yet, so nothing is sent. If you want to share it, attach it to a GitHub issue at\n"
+			       "  https://github.com/trvxoo-glitch/defib-vitals-public/issues or link it in a bug report on the Nexus page.\n";
+		} else if (!GetSettings().shareSend) {
+			out += "  Sending is off (bShareSend=0), so the zip stays on this PC.\n";
+		} else {
+			out += std::format("  Vitals sends it to https://{} the first time, after a new crash, and at most weekly otherwise.\n", Narrow(std::wstring(Share::kUploadHost)));
+			if (const auto st = ReadSendState(); !st.code.empty())
+				out += std::format("  Last pack sent: {} (enter it at https://{} to delete it; packs are deleted after 90 days anyway).\n", st.code,
+					Narrow(std::wstring(Share::kUploadHost)));
+			out += "  Keep the zip but stop sending: set bShareSend=0 in Vitals.ini.\n";
+		}
+		out += "  Turn it all off: set bSharePack=0 in Vitals.ini, or delete Data\\F4SE\\Plugins\\Vitals\\share-optin.txt.\n";
+		return out;
 	}
 }
