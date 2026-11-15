@@ -383,6 +383,7 @@ namespace Vitals
 			std::map<std::string, ModManagers::VortexModInfo> vortexMods;  // staging folder name (lower case) -> versions
 			std::vector<std::filesystem::path> modRoots;  // folders whose subfolders are installed mods
 			bool                               mo2{ false };
+			std::string                        vortexNote;  // what was found of Vortex's update info, for the report's "Mod manager" line
 		};
 
 		std::string ReadText(const std::filesystem::path& a_file)
@@ -403,9 +404,15 @@ namespace Vitals
 				wchar_t    ad[512]{};
 				const auto an = REX::W32::GetEnvironmentVariableW(L"APPDATA", ad, 512);
 				if (!out.vortex.dlls.empty() && an && an < 512) {
+					const auto                      dir = std::filesystem::path(std::wstring(ad, an)) / L"Vortex" / L"temp" / L"state_backups_full";
 					std::filesystem::path           newest;
 					std::filesystem::file_time_type when{};
-					for (const auto& f : std::filesystem::directory_iterator(std::filesystem::path(std::wstring(ad, an)) / L"Vortex" / L"temp" / L"state_backups_full", ec)) {
+					std::string                     names;
+					std::size_t                     count = 0;
+					for (const auto& f : std::filesystem::directory_iterator(dir, ec)) {
+						++count;
+						if (count <= 3)
+							names += (names.empty() ? "" : ", ") + Narrow(f.path().filename().wstring());
 						if (Lower(Narrow(f.path().extension().wstring())) != ".json")
 							continue;
 						const auto t = f.last_write_time(ec);
@@ -415,6 +422,14 @@ namespace Vitals
 					if (!newest.empty()) {
 						const auto d = ReadFile(newest, 256u << 20);
 						out.vortexMods = ModManagers::VortexStateMods(std::string_view(reinterpret_cast<const char*>(d.data()), d.size()));
+						std::size_t withNewest = 0;
+						for (const auto& [k, v] : out.vortexMods)
+							withNewest += !v.newest.empty();
+						out.vortexNote = std::format("Vortex update info: read {} ({} MB), {} mods in it, {} with a newest version recorded",
+							Narrow(newest.filename().wstring()), d.size() >> 20, out.vortexMods.size(), withNewest);
+					} else {
+						out.vortexNote = count ? "Vortex update info: no .json file in state_backups_full (found: " + names + ")"
+						                       : "Vortex update info: state_backups_full not found or empty";
 					}
 				}
 				if (const auto usvfs = REX::W32::GetModuleHandleW(L"usvfs_x64.dll")) {
@@ -650,6 +665,8 @@ namespace Vitals
 					std::format("The Address Library file for this game version (Data\\F4SE\\Plugins\\{}) is there, but {}. F4SE plugins that use it will fail, and many of them close the game with an error.", al.file, al.problem),
 					"Download Address Library for F4SE Plugins (Nexus 47327) again, the file for your exact game version, and replace this file.").reason = al.state;
 			}
+			if (refused && !InstalledMods().vortexNote.empty())
+				g_info.push_back(InstalledMods().vortexNote);
 			g_info.push_back(std::format("F4SE plugins: {} DLLs in Data\\F4SE\\Plugins, {} running, {} not running", total, running, refused));
 		}
 
