@@ -20,6 +20,9 @@ namespace Vitals::ModScan
 	{
 		std::string       installedBy;  // the mod whose copy the game sees (empty: not known)
 		std::vector<Copy> others;       // other mods whose copy is NOT byte-identical to the one the game sees
+		// MO2: the highest-priority mod that is on has a copy, but it is not the file the game loaded, which then comes
+		// from MO2's overwrite folder or was put in the game's Data folder by hand. That mod's copy is here, not in others.
+		std::optional<Copy> shadowed;
 	};
 
 	struct Deployed
@@ -35,12 +38,18 @@ namespace Vitals::ModScan
 		std::vector<std::string>         notes;    // lines for the report's top section
 		std::map<std::string, ModManagers::VortexModInfo> vortexMods;  // lower-case staging folder name -> versions
 		std::map<std::string, ModManagers::MetaInfo>      mo2Meta;     // lower-case mod name -> meta.ini (only mods named above)
+		// Everything about other copies runs before the start-up box, so it shares one deadline. Find sets it; the
+		// doctor's own reading of those copies (OtherCopies) stops at it too, and says so.
+		std::chrono::steady_clock::time_point deadline{};
+		bool                                  cut{ false };  // something was skipped because the deadline passed
+		bool                                  OutOfTime() const { return std::chrono::steady_clock::now() > deadline; }
 
 		const DllCopies* For(const std::string& a_dll) const;
 		std::string      NewerOnNexus(const std::string& a_mod) const;  // " Vortex says a newer version ..." or empty
 		std::string      ModVersion(const std::string& a_mod) const;    // the mod's own version, as the mod manager has it
 	};
 
-	// One pass over the mods folder for all of a_dlls together. Never throws for a missing or unreadable file.
-	Result Find(const std::vector<Deployed>& a_dlls);
+	// One pass over the mods folder for all of a_dlls together, until a_deadline. Never throws for a missing or
+	// unreadable file.
+	Result Find(const std::vector<Deployed>& a_dlls, std::chrono::steady_clock::time_point a_deadline);
 }

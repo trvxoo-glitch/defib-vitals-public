@@ -9,8 +9,6 @@ namespace Vitals::ModScan
 	{
 		using Clock = std::chrono::steady_clock;
 
-		// The scan runs before the start-up box, so it has a budget. Past it, the report says the list may be short.
-		constexpr auto        kBudget = std::chrono::milliseconds(2000);
 		constexpr std::size_t kMaxStateBackup = 64u << 20;  // Vortex's full state copy; bigger ones are skipped
 		constexpr std::size_t kMaxModFolders = 20'000;
 
@@ -86,9 +84,17 @@ namespace Vitals::ModScan
 				return;
 			}
 			const auto size = std::filesystem::file_size(newest, ec);
-			if (ec || size > kMaxStateBackup || Clock::now() > a_deadline) {
-				a_out.notes.push_back(std::format("Vortex update info: {} is {} MB, too big to read before the main menu; update check skipped",
+			if (ec || size > kMaxStateBackup) {
+				a_out.notes.push_back(std::format("Vortex update info: {} is {} MB, too big to read before the start-up box; update check skipped",
 					Narrow(newest.filename().wstring()), ec ? 0 : size >> 20));
+				return;
+			}
+			// Reading and walking the JSON runs at roughly 100 MB a second; it must fit in the time that is left.
+			const auto need = std::chrono::milliseconds(50 + size / (100'000));
+			if (Clock::now() + need > a_deadline) {
+				a_out.cut = true;
+				a_out.notes.push_back(std::format("Vortex update info: no time left before the start-up box to read {} ({} MB); update check skipped",
+					Narrow(newest.filename().wstring()), size >> 20));
 				return;
 			}
 			const auto text = ReadText(newest, kMaxStateBackup);
@@ -141,11 +147,12 @@ namespace Vitals::ModScan
 		return {};
 	}
 
-	Result Find(const std::vector<Deployed>& a_dlls)
+	Result Find(const std::vector<Deployed>& a_dlls, Clock::time_point a_deadline)
 	{
 		Result                      out;
 		const auto                  started = Clock::now();
-		const auto                  deadline = started + kBudget;
+		const auto                  deadline = a_deadline;
+		out.deadline = a_deadline;
 		std::error_code             ec;
 		std::filesystem::path       root;     // folder whose subfolders are installed mods
 		std::vector<ModManagers::ModListEntry> order;  // MO2: selected profile, winner first
@@ -182,7 +189,7 @@ namespace Vitals::ModScan
 			wanted.insert(Lower(d.name));
 		std::map<std::string, std::vector<Copy>> found;  // lower DLL name -> copies
 		std::size_t                              mods = 0;
-		bool                                     cut = false;
+		bool&                                    cut = out.cut;
 		for (const auto& mod : ListDir(root, kMaxModFolders)) {
 			if (Clock::now() > deadline) {
 				cut = true;
@@ -228,12 +235,23 @@ namespace Vitals::ModScan
 				});
 				// The game sees the copy of the highest-priority mod that is on. If that copy is not the deployed file,
 				// the file comes from somewhere else (MO2's overwrite folder, or the game's own Data folder).
-				if (!order.empty() && !copies.empty() && copies.front().enabled && SameBytes(copies.front().file, *d.bytes))
-					result.installedBy = copies.front().mod;
+				if (!order.empty() && !copies.empty() && copies.front().enabled && Clock::now() <= deadline) {
+					if (SameBytes(copies.front().file, *d.bytes))
+						result.installedBy = copies.front().mod;
+					else {
+						result.shadowed = std::move(copies.front());
+						copies.erase(copies.begin());
+						named.insert(Lower(result.shadowed->mod));
+					}
+				}
 			}
 			if (!result.installedBy.empty())
 				named.insert(Lower(result.installedBy));
 			for (auto& c : copies) {
+				if (Clock::now() > deadline) {
+					cut = true;  // the rest of this DLL's copies are not compared (OtherCopies says the list is short)
+					break;
+				}
 				if (Lower(c.mod) == Lower(result.installedBy) || SameBytes(c.file, *d.bytes))
 					continue;  // the copy the game sees, or the same file in another mod: nothing new to say
 				named.insert(Lower(c.mod));

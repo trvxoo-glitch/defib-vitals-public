@@ -73,6 +73,13 @@ Not yet tested in game.
     name the whole DLL (`x.dll` no longer matches `max.dll`); a loose file dated before Fallout 4's release (an archive's
     1980 date) no longer triggers an old-file rule, in game and in the preflight; the inbox tool needs the ticket
     category id, sends the bot token only to Discord's API, and skips zips that unpack too large.
+- **Fixes from a third review:** running F4SE DLLs are no longer read from disk at start-up (a knowledge rule that
+  looks for text inside DLLs now searches the copy already in memory, and only while the file it is about is
+  missing); the 2-second limit now covers every step about other copies (comparing copies, Vortex's state backup,
+  reading other mods' DLLs, at most 16 MB each), and the report says when it was reached; under MO2, when the DLL the
+  game loads is not the winning mod's copy (it is in Overwrite or was put in Data by hand), the report says so and
+  points at Overwrite instead of telling you to move mods; the inbox tool downloads attachments only from Discord's
+  file servers.
 - `Vitals.ini`: the `iPopupMode` comment describes 0.3.2's behaviour (the box shows every launch while it has
   something to list).
 

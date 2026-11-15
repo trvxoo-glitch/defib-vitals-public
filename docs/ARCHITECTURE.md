@@ -93,7 +93,11 @@ and a message box there appears before a load-order crash at the main menu.
    Visual Studio release that made it). A date earlier than that is ignored; a linker released after April 2024 alone
    puts the DLL in the "after" group.
    Then the mod manager's own data (`src/ModScan.cpp`, parsing in `include/Vitals/ModManagers.h`), once for all the
-   not-running DLLs together, with a 2-second budget because it runs before the start-up box. Under MO2
+   not-running DLLs together, with one 2-second deadline (`ModScan::Result::deadline`) shared by the folder walk, the
+   byte compares, the Vortex state backup and the doctor's reading of other copies (16 MB each), because it runs
+   before the start-up box. Running DLLs are never read from disk: a `needs` rule whose file is missing searches the
+   loaded image. Under MO2, when the winning mod's copy is not the loaded file, it is kept apart
+   (`DllCopies::shadowed`) and the advice points at Overwrite. Under MO2
    (`usvfs_x64.dll` loaded) the portable `ModOrganizer.ini` next to it, or else the instance in
    `%LOCALAPPDATA%\ModOrganizer` whose `gamePath` is this game folder (the newest if several), gives the mods folder
    and the selected profile; its `modlist.txt` (first line wins) says which mod's copy the game sees. Otherwise

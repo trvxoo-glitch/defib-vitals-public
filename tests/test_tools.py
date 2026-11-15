@@ -529,6 +529,10 @@ class DiscordPullTests(unittest.TestCase):
             urllib.request.urlopen = orig
         self.assertEqual(seen[0][1], "Bot tok")
         self.assertIsNone(seen[1][1])
+        # a link that is not Discord's file server is never fetched, with or without the token
+        for bad in ("https://evil.example/x.zip", "http://cdn.discordapp.com/x.zip", "https://cdn.discordapp.com.evil.example/x.zip"):
+            with self.assertRaises(SystemExit):
+                share_inbox._discord(bad, "tok", binary=True)
 
     def test_zip_bomb_is_skipped(self):
         import share_inbox

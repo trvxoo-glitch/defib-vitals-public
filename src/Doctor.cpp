@@ -69,6 +69,27 @@ namespace Vitals
 			           [](std::uint8_t a, char b) { return std::tolower(a) == std::tolower(static_cast<unsigned char>(b)); }) != a_hay.end();
 		}
 
+		// The same search in a DLL that is loaded: its image in memory, read only where the pages are readable.
+		bool ImageContains(const void* a_module, std::string_view a_needle)
+		{
+			const auto base = reinterpret_cast<const std::uint8_t*>(a_module);
+			std::int32_t  lfanew = 0;
+			std::uint32_t sizeOfImage = 0;
+			if (!base || a_needle.empty() || !SafeRead(base + 0x3C, &lfanew, 4) || lfanew <= 0 || lfanew > 0x1000 ||
+				!SafeRead(base + lfanew + 24 + 56, &sizeOfImage, 4) || sizeOfImage > (512u << 20))
+				return false;
+			auto eq = [](std::uint8_t a, char b) { return std::tolower(a) == std::tolower(static_cast<unsigned char>(b)); };
+			constexpr std::size_t kChunk = 1u << 20;
+			for (std::size_t at = 0; at < sizeOfImage; at += kChunk) {
+				const auto len = std::min<std::size_t>(kChunk + a_needle.size() - 1, sizeOfImage - at);
+				if (!IsReadable(base + at, len))
+					continue;
+				if (std::search(base + at, base + at + len, a_needle.begin(), a_needle.end(), eq) != base + at + len)
+					return true;
+			}
+			return false;
+		}
+
 		std::string VersionText(std::uint32_t a_packed)
 		{
 			return std::format("{}.{}.{}", (a_packed >> 24) & 0xFF, (a_packed >> 16) & 0xFF, (a_packed >> 4) & 0xFFF);
@@ -383,21 +404,37 @@ namespace Vitals
 		// no Nexus page: the newer copy is right there on the player's disk.
 		std::string OtherCopies(const ModScan::Result& a_scan, const ModScan::DllCopies& a_found, std::string& a_advice)
 		{
-			std::vector<std::string> wouldRun, mayRun, wouldNot;
-			for (const auto& c : a_found.others) {
-				const auto data = ReadFile(c.file, 32u << 20);
+			// What one copy would do on this game. Plugin DLLs are a few MB; 16 MB covers the headers, the export
+			// directory and the version resource of anything real, and keeps a huge file from stalling the start-up box.
+			auto judge = [](const std::filesystem::path& a_file, std::string* a_version) -> std::optional<Loader::Status> {
+				const auto data = ReadFile(a_file, 16u << 20);
 				const auto pe = ParsePe(data);
 				if (!pe.ok)
+					return std::nullopt;
+				if (a_version)
+					*a_version = Formats::FileVersion(data);
+				return Explain(pe, ReadVersionData(data, pe), {}).verdict.status;
+			};
+			std::vector<std::string> wouldRun, mayRun, wouldNot;
+			std::size_t              skipped = 0;
+			for (const auto& c : a_found.others) {
+				if (a_scan.OutOfTime()) {
+					++skipped;  // past the deadline: not read, and the report says so
+					continue;
+				}
+				std::string version;
+				const auto  status = judge(c.file, &version);
+				if (!status)
 					continue;
 				auto label = "\"" + c.mod + "\"";
-				if (const auto v = Formats::FileVersion(data); !v.empty())
-					label += " (file version " + v + ")";
+				if (!version.empty())
+					label += " (file version " + version + ")";
 				else if (const auto mv = a_scan.ModVersion(c.mod); !mv.empty())
 					label += " (mod version " + mv + ")";
 				if (!c.enabled)
 					label += " (off in your MO2 profile)";
 				// Old-Gen: a plugin with F4SEPlugin_Query decides for itself at run time, so its copy may well run.
-				switch (Explain(pe, ReadVersionData(data, pe), {}).verdict.status) {
+				switch (*status) {
 				case Loader::Status::yes: wouldRun.push_back(label); break;
 				case Loader::Status::maybe: mayRun.push_back(label); break;
 				default: wouldNot.push_back(label); break;
@@ -414,9 +451,27 @@ namespace Vitals
 			};
 			const char* how = a_scan.manager == "MO2" ? "MO2: put that mod lower in the left pane, and turn it on" : "Vortex: Mods > Conflicts, or remove the older mod";
 			std::string out;
+
+			// MO2: the winning mod's copy is not what the game loaded. Moving mods in the left pane changes nothing then:
+			// the loaded file is in MO2's overwrite folder, or was put in the game's Data folder by hand.
+			if (const auto& top = a_found.shadowed) {
+				const auto status = a_scan.OutOfTime() ? std::nullopt : judge(top->file, nullptr);
+				const auto runs = status && *status != Loader::Status::no;
+				out += std::format(" The game is not loading the copy from \"{}\", your highest-priority MO2 mod with this DLL: the file it loads is a "
+				                   "different one, from MO2's Overwrite folder or put in the game's Data\\F4SE\\Plugins folder by hand.{}",
+					top->mod, !status ? "" : runs ? " That mod's own copy would run." : " That mod's own copy would not run either.");
+				a_advice = runs ? std::format("Remove the other copy of this DLL so the one from \"{}\" is used: in MO2, open Overwrite at the bottom of "
+				                              "the left pane (or the Data tab) and delete or move the old DLL; if it is in the game's own "
+				                              "Data\\F4SE\\Plugins folder, remove it there.",
+				                      top->mod)
+				                : std::format("The DLL the game loads comes from MO2's Overwrite folder or the game's own Data\\F4SE\\Plugins folder, "
+				                              "not from \"{}\". Check Overwrite at the bottom of MO2's left pane (or the Data tab) for an old copy.",
+				                      top->mod);
+			}
 			if (!wouldRun.empty()) {
-				a_advice = std::format("Another installed mod has a copy of this DLL that would run on your game: {}. Make that mod win the file conflict ({}).",
-					join(wouldRun), how);
+				if (a_advice.empty())
+					a_advice = std::format("Another installed mod has a copy of this DLL that would run on your game: {}. Make that mod win the file conflict ({}).",
+						join(wouldRun), how);
 				out += std::format(" {}: {}.", count(wouldRun, "a working copy"), join(wouldRun));
 			}
 			if (!mayRun.empty()) {
@@ -429,6 +484,9 @@ namespace Vitals
 			if (!wouldNot.empty())
 				out += std::format(" {} ({}); {} would not run on your game either.", count(wouldNot, "this DLL too"), join(wouldNot),
 					wouldNot.size() == 1 ? "that copy" : "those copies");
+			if (skipped)
+				out += std::format(" {} more installed cop{} not checked: the time limit before the start-up box was reached.", skipped,
+					skipped == 1 ? "y was" : "ies were");
 			return out;
 		}
 
@@ -495,7 +553,11 @@ namespace Vitals
 			std::error_code ec;
 			std::size_t     total = 0, running = 0, refused = 0;
 			std::map<std::size_t, std::vector<std::string>> needs;  // index of a 'needs' rule -> DLLs that contain its text
-			const bool anyNeeds = std::ranges::any_of(a_rules, [](const Rule& r) { return r.kind == "needs"; });
+			// 'needs' rules matter only while the file they need is missing (f4rd-runtime.bin is installed on most setups).
+			std::vector<std::size_t> activeNeeds;
+			for (std::size_t i = 0; i < a_rules.size(); ++i)
+				if (a_rules[i].kind == "needs" && !GameFileExists(a_rules[i].extra))
+					activeNeeds.push_back(i);
 			std::vector<Refused> pending;
 
 			for (const auto& entry : ListDir(PluginDir())) {
@@ -517,15 +579,19 @@ namespace Vitals
 					else
 						Add(r.severity, "known_issue", file, r.message);
 				}
-				// The file is read only when something needs its contents: a 'needs' rule, or a DLL that is not running.
-				if (!anyNeeds && inProcess)
+				// A running DLL is never read from disk: it is already in memory, so a 'needs' rule searches the loaded
+				// image. Only a DLL that is not running is read (its contents explain why).
+				if (inProcess) {
+					const auto module = REX::W32::GetModuleHandleW(entry.path().filename().c_str());
+					for (const auto i : activeNeeds)
+						if (ImageContains(module, a_rules[i].match))
+							needs[i].push_back(file);
 					continue;
+				}
 				auto data = ReadFile(entry.path(), 96u << 20);
-				for (std::size_t i = 0; i < a_rules.size(); ++i)
-					if (a_rules[i].kind == "needs" && Contains(data, a_rules[i].match))
+				for (const auto i : activeNeeds)
+					if (Contains(data, a_rules[i].match))
 						needs[i].push_back(file);
-				if (inProcess)
-					continue;
 
 				++refused;
 				auto& r = pending.emplace_back();
@@ -543,7 +609,8 @@ namespace Vitals
 				for (const auto& r : pending)
 					deployed.push_back({ r.file, &r.data });
 				try {
-					scan = ModScan::Find(deployed);
+					// one 2-second budget for everything about other copies, before the start-up box
+					scan = ModScan::Find(deployed, std::chrono::steady_clock::now() + std::chrono::seconds(2));
 				} catch (const std::exception& ex) {
 					g_info.push_back(std::format("Mod manager: the look for other copies stopped early ({})", ex.what()));
 				}
@@ -555,8 +622,6 @@ namespace Vitals
 
 			for (const auto& [index, dlls] : needs) {
 				const auto& r = a_rules[index];
-				if (GameFileExists(r.extra))
-					continue;
 				std::string list;
 				for (const auto& d : dlls)
 					list += (list.empty() ? "" : ", ") + d;

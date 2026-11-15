@@ -34,15 +34,20 @@ KNOWLEDGE = os.path.join(ROOT, "dist", "Data", "F4SE", "Plugins", "Vitals", "kno
 
 # ---------------------------------------------------------------- pull from Discord
 DISCORD = "https://discord.com/api/v10"
+ATTACHMENT_HOSTS = {"cdn.discordapp.com", "media.discordapp.net"}
 
 
 def _discord(path, token, binary=False):
-    """GET from the Discord API as a read-only bot. Waits out rate limits (429). A full URL (an attachment on Discord's
-    file server) is fetched WITHOUT the bot token: it does not need it, and the token goes only to the API."""
+    """GET from the Discord API as a read-only bot. Waits out rate limits (429). A full URL (an attachment) must be
+    https on Discord's own file servers, and is fetched WITHOUT the bot token: attachment links are signed, so they do
+    not need it, and the token only ever goes to discord.com/api. Any other link is refused."""
     import time
     import urllib.error
-    if path.startswith("http") and not path.startswith("https://"):
-        raise SystemExit(f"Refusing a non-https attachment link: {path.split('?')[0]}")
+    import urllib.parse
+    if path.startswith("http"):
+        u = urllib.parse.urlsplit(path)
+        if u.scheme != "https" or (u.hostname or "") not in ATTACHMENT_HOSTS:
+            raise SystemExit(f"Refusing an attachment link that is not on Discord's file servers: {u.scheme}://{u.hostname}")
     for _ in range(6):
         headers = {"User-Agent": "DiscordBot (vitals-share-inbox, 1)"}
         if not path.startswith("http"):
