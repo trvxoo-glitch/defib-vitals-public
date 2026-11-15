@@ -376,7 +376,7 @@ namespace Vitals::Share
 	// ---------------- automatic sending (opted-in players only) ----------------
 	// Where packs go. Empty means "not set up": Vitals then only writes the zip, as before. Filled in once the server
 	// (server/README.md) is deployed. HTTPS only.
-	inline constexpr std::wstring_view kUploadHost = L"";
+	inline constexpr std::wstring_view kUploadHost = L"vitals-share.vitalsguy.workers.dev";
 	inline constexpr std::wstring_view kUploadPath = L"/v1/pack";
 	inline constexpr std::int64_t      kResendSeconds = 7 * 24 * 3600;  // a pack with no new crash goes at most weekly
 	inline constexpr std::int64_t      kRetrySeconds = 6 * 3600;        // after a failed send

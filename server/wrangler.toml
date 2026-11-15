@@ -2,6 +2,8 @@
 name = "vitals-share"
 main = "worker.js"
 compatibility_date = "2026-10-01"
+workers_dev = true
+preview_urls = false
 
 # Nothing about the sender is kept: no request logs.
 [observability]

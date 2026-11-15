@@ -41,7 +41,7 @@ You need a free Cloudflare account and Node.js. Run these in this folder.
    `npx wrangler secret put READ_KEY` and `npx wrangler secret put SALT_KEY`
 6. `npx wrangler deploy`. It prints the address (`https://vitals-share.<your-subdomain>.workers.dev`).
 
-Then put the host name (`vitals-share.<your-subdomain>.workers.dev`) in `Share::kUploadHost` in
+Then put the host name (`vitals-share.vitalsguy.workers.dev`, already set) in `Share::kUploadHost` in
 `include/Vitals/Share.h`, and release Vitals. Until then Vitals only writes the zip. Check the commands against Cloudflare's current documentation when you run them:
 Wrangler's command names change between versions.
 
