@@ -310,8 +310,8 @@ class AgeNoteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             old = calendar.timegm(datetime.datetime(2021, 8, 7).timetuple())
             new = calendar.timegm(datetime.datetime(2025, 3, 1).timetuple())
-            self.assertIn("Built 2021-08-07, before the April 2024 Next-Gen update", defib_preflight.age_note(self._dll(tmp, old)))
-            self.assertIn("Built 2025-03-01, after the Next-Gen update", defib_preflight.age_note(self._dll(tmp, new)))
+            self.assertIn("Built (date inside the DLL) 2021-08-07, before the April 2024 Next-Gen update", defib_preflight.age_note(self._dll(tmp, old)))
+            self.assertIn("Built (date inside the DLL) 2025-03-01, after the Next-Gen update", defib_preflight.age_note(self._dll(tmp, new)))
             # a reproducible build has a meaningless timestamp: fall back to the file date and say it is weaker
             self.assertIn("Its file is dated", defib_preflight.age_note(self._dll(tmp, 0xDEADBEEF)))
             # the wording does not call a file outdated: the newest file on a mod page may simply lack Next-Gen support

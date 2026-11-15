@@ -204,6 +204,20 @@ static void PeTests()
 	auto       pe = F::ParsePe(good);
 	CHECK(pe.ok && pe.exports.size() == 2 && pe.exports.contains("F4SEPlugin_Query") && pe.timestamp == 0x66000000);
 	CHECK(!pe.reproducible);
+	CHECK(F::FileVersion(good).empty());
+	{
+		auto d = good;
+		const std::size_t at = 0x1380;  // inside the section, after the export names
+		Put<std::uint32_t>(d, at, 0xFEEF04BD);
+		Put<std::uint32_t>(d, at + 4, 0x00010000);
+		Put<std::uint32_t>(d, at + 8, (5u << 16) | 0);   // 5.0
+		Put<std::uint32_t>(d, at + 12, (2u << 16) | 7);  // .2.7
+		CHECK(F::FileVersion(d) == "5.0.2.7");
+		Put<std::uint32_t>(d, at + 4, 0x00020000);  // not a VS_FIXEDFILEINFO
+		CHECK(F::FileVersion(d).empty());
+		std::vector<std::uint8_t> cut(d.begin(), d.begin() + at + 10);  // signature at the very end: no read past it
+		CHECK(F::FileVersion(cut).empty());
+	}
 	{
 		// a /Brepro build: debug directory (data directory 6) with an entry of type 16; its timestamp is a hash, not a date
 		auto d = good;

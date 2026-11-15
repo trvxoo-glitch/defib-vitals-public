@@ -223,7 +223,7 @@ def age_note(path):
     if not built or built < dt.date(2010, 1, 1) or built > dt.date.today() + dt.timedelta(days=1):
         built = dt.date.fromtimestamp(os.path.getmtime(path))
         weak = True
-    what = "Its file is dated" if weak else "Built"
+    what = "Its file is dated" if weak else "Built (date inside the DLL)"
     if built < NEXT_GEN:
         return (f" {what} {built}, before the April 2024 Next-Gen update, so it {'was probably' if weak else 'was most likely'} made for Old-Gen 1.10.163 or earlier."
                 " If it is already the newest file on its mod page, its author has not released a version for your game yet.")

@@ -62,6 +62,24 @@ namespace Vitals::Formats
 		return std::nullopt;
 	}
 
+	// The DLL's own file version (its VERSIONINFO resource), "1.2.3.4", or empty. Players compare it with the version on
+	// the mod page: an older number than the page shows means an older copy is installed (often another mod's).
+	inline std::string FileVersion(Bytes d)
+	{
+		static constexpr std::uint8_t kSig[4] = { 0xBD, 0x04, 0xEF, 0xFE };  // VS_FIXEDFILEINFO.dwSignature 0xFEEF04BD
+		for (std::size_t i = 0; i + 16 <= d.size(); ++i) {
+			if (d[i] != kSig[0] || d[i + 1] != kSig[1] || d[i + 2] != kSig[2] || d[i + 3] != kSig[3])
+				continue;
+			std::uint32_t strucVersion = 0, ms = 0, ls = 0;
+			if (!Get(d, i + 4, strucVersion) || !Get(d, i + 8, ms) || !Get(d, i + 12, ls) || strucVersion != 0x00010000)
+				continue;
+			if (!ms && !ls)
+				return {};
+			return std::to_string(ms >> 16) + "." + std::to_string(ms & 0xFFFF) + "." + std::to_string(ls >> 16) + "." + std::to_string(ls & 0xFFFF);
+		}
+		return {};
+	}
+
 	inline PeInfo ParsePe(Bytes d)
 	{
 		PeInfo        pe;

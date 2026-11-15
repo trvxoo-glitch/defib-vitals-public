@@ -1,6 +1,9 @@
 #include "Vitals.h"
 #include "Vitals/Formats.h"
 #include "Vitals/Rules.h"
+#include "Vitals/Share.h"
+
+#include <sstream>
 
 // Plugin doctor (bDoctor=1, on by default). Runs at kPostPostLoad: after every F4SE plugin had its chance to
 // load, and BEFORE the game reads its plugins (.esm/.esp/.esl), so it can warn about a load order that is
@@ -130,7 +133,7 @@ namespace Vitals
 				weak = true;  // file date: archives and mod managers can change it
 			}
 			const auto when = std::format("{:%Y-%m-%d}", day);
-			const char* what = weak ? "Its file is dated " : "Built ";
+			const char* what = weak ? "Its file is dated " : "Built (date inside the DLL) ";
 			if (day < nextGen) {
 				a.kind = Age::Kind::before;
 				a.group = "pre";
@@ -352,6 +355,22 @@ namespace Vitals
 			return std::chrono::sys_days{ ymd };
 		}
 
+		// Which Vortex mod deployed a DLL (Data\vortex.deployment.json), read once, only when a DLL is not running.
+		std::string VortexSource(const std::string& a_dll)
+		{
+			static const Share::VortexDlls v = [] {
+				std::ifstream     in(GameDir() / L"Data" / L"vortex.deployment.json", std::ios::binary);
+				std::stringstream ss;
+				if (in)
+					ss << in.rdbuf();
+				return Share::ParseVortexManifest(ss.str());
+			}();
+			for (const auto& [dll, src] : v.dlls)
+				if (Lower(dll) == Lower(a_dll))
+					return src;
+			return {};
+		}
+
 		// ---------------- 1 + 2: DLLs ----------------
 		void CheckDlls(const std::vector<Rule>& a_rules)
 		{
@@ -414,6 +433,16 @@ namespace Vitals
 						e.advice = "Check the mod page for a version made for your game version. If this is already the newest file, nothing is wrong with your setup: that mod does not support this game version yet, so look for a replacement. Until then its features (and mods that need it) will not work.";
 				}
 				const bool notPlugin = why == Loader::Why::not_plugin;
+				// What the player needs to tell "old mod" from "old copy": the DLL's own version number to compare with
+				// the mod page, and (Vortex) which mod's copy is the one deployed. Another mod bundling an older copy of
+				// a shared DLL, and winning the file conflict, looks exactly like an outdated mod otherwise.
+				std::string where;
+				if (const auto ver = FileVersion(data); !ver.empty())
+					where += " File version " + ver + ".";
+				if (const auto src = VortexSource(file); !src.empty())
+					where += " Installed by the Vortex mod \"" + src + "\".";
+				if (!notPlugin && (why == Loader::Why::no_version_data || why == Loader::Why::no_version_data_query_only))
+					e.advice += " If you just installed the newest file and still see this, another mod may be overwriting it with an older copy: check which mod provides this DLL in your mod manager (Vortex: the mod's Conflicts; MO2: the Data tab).";
 				// Not running is a mod that does not work, not a crash: a warning. Crash risks (masters, the Address
 				// Library) are reported as problems by their own checks, or by a rule that says so.
 				std::string severity = notPlugin ? "info" : "warning";
@@ -423,7 +452,7 @@ namespace Vitals
 						severity = refusedRule->severity;
 				}
 				Add(severity, "plugin_dll", file,
-					std::format("{} is in Data\\F4SE\\Plugins but is not running: {}.{}", file, e.text, f4se.empty() ? ""s : " f4se.log: \"" + f4se + "\""),
+					std::format("{} is in Data\\F4SE\\Plugins but is not running: {}.{}{}", file, e.text, where, f4se.empty() ? ""s : " f4se.log: \"" + f4se + "\""),
 					e.advice, group)
 					.reason = Loader::Name(why);
 			}
