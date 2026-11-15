@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fomod>
+	<Name>Vitals - F4SE Plugin Doctor</Name>
+	<Author>Defib project</Author>
+	<Version MachineVersion="0.3.0">0.3.0</Version>
+	<Description>Explains why F4SE plugins did not load, finds missing or inactive masters and known bad files, and records what ran (game build, plugins, hooked engine functions) for every session. Part of the Defib project. AI Assisted.</Description>
+	<Website>https://github.com/trvxoo-glitch/defib-vitals-public</Website>
+	<Groups>
+		<element>Utilities</element>
+	</Groups>
+</fomod>

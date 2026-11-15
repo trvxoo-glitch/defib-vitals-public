@@ -1,0 +1,54 @@
+# F4SE loader cases. Both tools/f4se_dll_scan.py verdict() (tests/test_tools.py) and Vitals' C++ rules
+# (include/Vitals/Rules.h, tests/cpp/rules_test.cpp) must give the expected status and reason for every line.
+# Rules from F4SE source: 0.6.x calls Query; 0.7.x PluginManager::CheckPluginCompatibility.
+#
+# era | game | f4se (- = unknown) | exports | dataVersion | name (y/n) | addr | struct | compatibleVersions | f4se required | reservedBreaking | Address Library file (y/n) | status | why
+# exports: none, or a list of query, version, load. Flag fields are numbers (addr: 1 Signatures, 2 AL 1.10.980, 4 AL 1.11.137;
+# struct: 1 NoStructs, 2 1.10.980 layout, 4 1.11.137 layout). Versions are a.b.c.
+
+AE|1.11.240|0.7.7|none|1|y|0|0|-|-|0|y|no|not_plugin
+OG|1.10.163|0.6.23|load|1|y|0|0|-|-|0|y|no|og_no_query
+OG|1.10.163|0.6.23|query,load|1|y|0|0|-|-|0|y|maybe|og_query_decides
+OG|1.10.163|0.6.23|version,load|1|y|6|0|1.11.240|-|0|y|no|og_no_query
+AE|1.11.240|0.7.7|query,load|1|y|0|0|-|-|0|y|no|no_version_data_query_only
+NG|1.10.984|0.7.2|load|1|y|0|0|-|-|0|y|no|no_version_data
+AE|1.11.240|0.7.7|version,load|0|y|4|4|-|-|0|y|no|bad_version_data
+AE|1.11.240|0.7.7|version,load|1|n|4|4|-|-|0|y|no|no_name
+
+# Independent for the era
+AE|1.11.240|0.7.7|version,load|1|y|4|4|-|-|0|y|yes|independent
+AE|1.11.240|0.7.7|version,load|1|y|1|1|-|-|0|y|yes|independent
+NG|1.10.984|0.7.2|version,load|1|y|2|2|-|-|0|y|yes|independent
+NG|1.10.984|0.7.2|version,load|1|y|4|4|-|-|0|y|no|not_declared
+
+# Vitals' own block: NO Address Library flags (so F4SE still loads Vitals when the file is missing, and Vitals can
+# say so), NO layout flags, exact list. Loads only through the list.
+AE|1.11.240|0.7.7|query,version,load|1|y|0|0|1.10.980,1.10.984,1.11.137,1.11.159,1.11.169,1.11.191,1.11.221,1.11.240|0.7.0|0|y|yes|listed
+NG|1.10.984|0.7.2|query,version,load|1|y|0|0|1.10.980,1.10.984,1.11.137,1.11.159,1.11.169,1.11.191,1.11.221,1.11.240|0.7.0|0|y|yes|listed
+AE|1.11.240|0.7.7|query,version,load|1|y|0|0|1.10.980,1.10.984,1.11.137,1.11.159,1.11.169,1.11.191,1.11.221,1.11.240|0.7.0|0|n|yes|listed
+NG|1.10.984|0.7.2|query,version,load|1|y|0|0|1.10.980,1.10.984,1.11.137,1.11.159,1.11.169,1.11.191,1.11.221,1.11.240|0.7.0|0|n|yes|listed
+AE|1.11.241|0.7.7|query,version,load|1|y|0|0|1.10.980,1.10.984,1.11.137,1.11.159,1.11.169,1.11.191,1.11.221,1.11.240|0.7.0|0|y|no|other_builds
+
+# Address Library check comes before the list (F4SE order), but only for the current era's flag
+AE|1.11.240|0.7.7|version,load|1|y|4|4|-|-|0|n|no|address_library_missing
+AE|1.11.240|0.7.7|version,load|1|y|6|0|1.11.240|-|0|n|no|address_library_missing
+AE|1.11.240|0.7.7|version,load|1|y|1|1|-|-|0|n|yes|independent
+NG|1.10.984|0.7.2|version,load|1|y|4|0|1.10.984|-|0|n|yes|listed
+
+# Next-Gen flags only, on Anniversary
+AE|1.11.240|0.7.7|version,load|1|y|2|2|-|-|0|y|no|ng_flags_only
+AE|1.11.240|0.7.7|version,load|1|y|2|2|1.10.984|-|0|y|no|ng_flags_only
+AE|1.11.240|0.7.7|version,load|1|y|2|2|1.11.240|-|0|y|yes|listed
+AE|1.11.240|0.7.7|version,load|1|y|0|0|1.11.191|-|0|y|no|other_builds
+AE|1.11.240|0.7.7|version,load|1|y|0|0|-|-|0|y|no|not_declared
+
+# reservedBreaking cancels independence; the list still works
+AE|1.11.240|0.7.7|version,load|1|y|4|4|-|-|1|y|no|not_declared
+AE|1.11.240|0.7.7|version,load|1|y|4|4|1.11.240|-|1|y|yes|listed
+
+# Minimum F4SE version, checked last
+AE|1.11.240|0.7.6|version,load|1|y|4|4|-|0.7.7|0|y|no|needs_newer_f4se
+AE|1.11.240|0.7.6|version,load|1|y|0|0|1.11.240|0.7.7|0|y|no|needs_newer_f4se
+AE|1.11.240|0.7.7|version,load|1|y|4|4|-|0.7.7|0|y|yes|independent
+AE|1.11.240|-|version,load|1|y|4|4|-|0.9.0|0|y|yes|independent
+AE|1.11.240|0.7.6|version,load|1|y|0|0|1.11.191|0.7.7|0|y|no|other_builds

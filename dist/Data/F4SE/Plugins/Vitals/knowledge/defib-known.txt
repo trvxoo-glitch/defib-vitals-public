@@ -1,0 +1,17 @@
+# Vitals knowledge rules, shipped with Vitals. One rule per line:
+#   kind | match | extra | severity | message
+# kind:
+#   dll      match = DLL file name in Data\F4SE\Plugins. extra = "refused" (only when it is not running) or "-".
+#   needs    match = text found inside a DLL. extra = file it needs, relative to the game folder.
+#   conflict match and extra = two files relative to the game folder ({ENB} = an ENB is installed). Both present -> issue.
+#   Special names: {ENB}, {ADDRESS_LIBRARY} (the Address Library file for the running game version).
+#   oldfile  match = loose file relative to the game folder. extra = date YYYY-MM-DD. Older than that -> issue.
+#   file     match = file relative to the game folder. Present -> issue.
+# severity: problem (may crash the game; always shown in the start-up box) | warning | info.
+# A 'dll ... refused' rule's message becomes the advice for that DLL in the report (its severity is used if higher).
+# Every rule here comes from a finding we confirmed in game (Defib census notes, dates given). Add your own rules
+# in another .txt file in this folder; Vitals reads all of them. Updating Vitals replaces this file and defib-census.txt only.
+
+# The rules found by the Defib census are in defib-census.txt next to this file (generated from the census
+# repository; it is replaced by updates too). This file keeps the format notes above and any rule that does not
+# come from the census. If the same rule is in two files, Vitals uses it once.

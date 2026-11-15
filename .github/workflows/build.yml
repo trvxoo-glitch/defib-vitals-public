@@ -1,0 +1,99 @@
+name: build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Publish this build as a release, e.g. 0.2.3 (leave empty for a normal build)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  vitals:
+    # Pinned: windows-latest moved to Windows Server 2025; ports and Vitals build on 2022 (VS 2022 MSVC).
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned CommonLibF4
+        shell: pwsh
+        run: ./tools/fetch_commonlib.ps1
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: '3.1.2'
+          actions-cache-folder: '.xmake-cache'
+
+      - name: Configure and build
+        run: |
+          xmake config --yes --mode=release --arch=x64
+          xmake build --yes --verbose
+
+      - name: Package (Data layout)
+        shell: pwsh
+        run: |
+          # FOMOD layout (Vortex, MO2): see tools/make_package.py. Fails if ModuleConfig.xml names a missing path.
+          python tools/make_package.py build --dll build/windows/x64/release/Vitals.dll --out package
+          if ($LASTEXITCODE -ne 0) { throw "FOMOD package check failed" }
+          New-Item -ItemType Directory -Force symbols | Out-Null
+          Copy-Item build/windows/x64/release/Vitals.pdb symbols/ -ErrorAction SilentlyContinue
+          python tools/f4se_dll_scan.py "package/00 Core/F4SE/Plugins/Vitals.dll" | Tee-Object package/Docs/dll_scan.txt
+          if (-not (Select-String -Path package/Docs/dll_scan.txt -Pattern "F4SEPlugin_Version" -Quiet)) { throw "Vitals.dll has no F4SEPlugin_Version export: F4SE 0.7.x would never load it" }
+          if (Select-String -Path package/Docs/dll_scan.txt -Pattern "AE 1.11.240\s+no" -Quiet) { throw "dll scan predicts Vitals will NOT load on 1.11.240" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vitals-${{ github.sha }}
+          path: |
+            package/
+            symbols/
+
+  release:
+    # A tag like v0.2.3, or a manual run with release_version, publishes the CI build as a GitHub release
+    # (the manual run creates the tag on the commit it built). Release notes come from CHANGELOG.md.
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '')
+    needs: [vitals, analyzer]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Vitals-${{ github.sha }}
+          path: dl
+      - name: Zip and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_version != '' && format('v{0}', inputs.release_version) || github.ref_name }}
+        run: |
+          ver="${TAG#v}"
+          (cd dl/package && zip -qr "../../Vitals-${ver}-AI-Assisted.zip" .)
+          (cd dl/symbols && zip -qr "../../Vitals-${ver}-symbols.zip" .) || true
+          awk -v v="## ${ver}" '$0 ~ "^## " { if (p) exit; if (index($0, v) == 1) p = 1 } p' CHANGELOG.md > notes.md
+          printf '\n---\n**AI Assisted.** Written with Claude (Anthropic) and tested in game by a person on the builds listed. See AI_DISCLOSURE.md.\n' >> notes.md
+          gh release create "$TAG" Vitals-${ver}-*.zip --target "$GITHUB_SHA" --title "Vitals ${ver} (AI Assisted)" --notes-file notes.md
+
+  analyzer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: C++ rules test (F4SE loader rules shared with f4se_dll_scan.py, popup, names, file readers)
+        run: |
+          g++ -std=c++20 -Wall -Wextra -Werror -I include tests/cpp/rules_test.cpp -o rules_test
+          ./rules_test tests/loader_cases.txt
+          # the same tests under AddressSanitizer/UBSan: the PE, Address Library and TES4 fuzz cases must not read out of bounds
+          g++ -std=c++20 -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-sanitize-recover=all -I include tests/cpp/rules_test.cpp -o rules_test_asan
+          ./rules_test_asan tests/loader_cases.txt
+      - name: Unit tests (log analyzer, preflight, FOMOD package, address generator, loader cases)
+        run: python -m unittest discover -s tests -v

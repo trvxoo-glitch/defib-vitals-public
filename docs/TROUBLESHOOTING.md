@@ -1,0 +1,36 @@
+# Troubleshooting
+
+## Vitals itself
+
+| Symptom | Cause and fix |
+| --- | --- |
+| No `Documents\My Games\Fallout4\F4SE\Vitals` folder | Vitals did not load. Check `f4se.log` for `Vitals.dll`. You need F4SE for your game version; Vitals supports 1.10.163, 1.10.980/984 and 1.11.137 to 1.11.240 |
+| `f4se.log`: Vitals "disabled, incompatible with current runtime" | A game patch newer than this Vitals. Vitals lists the exact builds it supports on purpose, so F4SE skips it instead of crashing. Wait for an update |
+| I pressed "Don't show" and want the plugin list back | Delete `popup_disabled.txt` in the Vitals output folder |
+| The message box every launch | `iPopupMode=2`, a problem keeps coming and going (for example a plugin toggled by a script), or you pressed **Stop game** (the box then shows again on purpose). Set `iPopupMode=0` to silence it |
+| No message box although the report lists problems | `iPopupMode=1` shows each item once; warnings other than plugins that are not running never open it. Delete `popup_seen.txt` to see it again |
+| `Vitals-Report.txt` has no ADDRESS CHECK section | The game did not reach the main menu, or `bAddressCheck=0` |
+| Address check: many `differs` or `patched_in_place` | Another mod patched those functions in place (`patched_in_place`: switched off with a return stub), or the address list does not match your build. Report it with `Vitals.jsonl` |
+| Address check: `resolved_no_baseline` on Old-Gen | Expected. The Steam 1.10.163 exe is encrypted on disk. Optional: capture a local baseline once (`bCaptureBaseline=1`, F4SE + Vitals only, then back to 0) |
+| A load-order warning for a plugin that is fine | Vitals reads `%LOCALAPPDATA%\Fallout4\plugins.txt` and `Fallout4.ccc`. If your manager keeps the order elsewhere and it does not reach the game, report it with the report file |
+| Start-up a little slower | The doctor reads each DLL in `Data\F4SE\Plugins` once (a few MB in total, under a second on an SSD). `bDoctor=0` turns it off |
+
+## Problems Vitals points at
+
+| Report says | Usually means |
+| --- | --- |
+| DLL built for Old-Gen only | Mod abandoned before the 2024 updates. Search Nexus for "NG", "AE" or "port" versions; the Defib project tracks them |
+| Address Library missing | Install the "All in one" Address Library file or the one for your build |
+| Address Library there but not usable | Download it again and replace the file: it is cut short, damaged, or an old file CommonLib refuses |
+| A.esp has the master (ESM) flag and loads before its master B.esp | Sorting cannot fix it. Deactivate A.esp or get a version that does not need B.esp |
+| `f4rd-runtime.bin` missing | Install Runtime Database (Nexus 108394) |
+| Master installed but not active | Usually a patch for a mod you disabled. Disable the patch |
+| Old `MainMenu.swf` | Crash at the main menu on Anniversary. Disable the mod providing it; in Vortex make sure no other mod provides the same file |
+| Old `FontConfig.txt` | Boxes instead of text |
+| ENB and Community Shaders both installed | ENB effects may not apply. Use one |
+
+## Where else to look
+
+* `Documents\My Games\Fallout4\F4SE\f4se.log`: which DLLs F4SE loaded.
+* Buffout 4 / Addictol crash logs (`Documents\My Games\Fallout4\F4SE\crash-*.log`) after a crash, and CLASSIC to read them.
+* `tools\defib_logs.py` combines all of these with Vitals' files into one report.

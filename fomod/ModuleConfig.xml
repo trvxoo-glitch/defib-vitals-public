@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FOMOD installer for Vortex, Mod Organizer 2 and other managers that read ModConfig 5.0.
+     Destinations are relative to the game's Data folder. tools/make_package.py builds the folders named
+     below, and tools/make_package.py (its check runs in CI) fails the build if any of them is missing. -->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+	<moduleName>Vitals - F4SE Plugin Doctor</moduleName>
+	<requiredInstallFiles>
+		<folder source="00 Core" destination="" />
+	</requiredInstallFiles>
+	<installSteps order="Explicit">
+		<installStep name="Settings">
+			<optionalFileGroups order="Explicit">
+				<group name="Who is this install for?" type="SelectExactlyOne">
+					<plugins order="Explicit">
+						<plugin name="Player (recommended)">
+							<description>Plugin doctor, environment report, address check and crash breadcrumbs. A message box appears at start-up only when something new needs attention (a problem that may crash the game, or an F4SE plugin that is not running). The full report is in Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt.
+
+Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.</description>
+							<files>
+								<folder source="10 Settings - Player" destination="" />
+							</files>
+							<typeDescriptor><type name="Recommended" /></typeDescriptor>
+						</plugin>
+						<plugin name="Mod author / developer">
+							<description>Everything in Player, plus the developer options: a list of every Papyrus native function and the DLL that registered it, and the engine layout probes. Logs are larger and start-up is slightly slower. Use this when you write or port F4SE plugins.</description>
+							<files>
+								<folder source="11 Settings - Developer" destination="" />
+							</files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+					</plugins>
+				</group>
+			</optionalFileGroups>
+		</installStep>
+	</installSteps>
+</config>
