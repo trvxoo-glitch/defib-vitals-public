@@ -23,8 +23,8 @@ How the plugin is put together, so it can be changed safely years from now.
    goes to `Vitals.jsonl`.
 6. **Evidence-based rules.** Doctor rules come from findings confirmed in game, dated, with the build.
 7. **No personal data.** Paths are redacted (`Redact`) before anything is written.
-8. **Network only for the opt-in share pack.** `Share.cpp` loads WinHTTP only to send the pack, only when the player
-   opted in, and only to `Share::kUploadHost`. Everything in it passes the scrubber (`include/Vitals/Scrub.h`), and the list of files is fixed in `Share.cpp`.
+8. **No network code.** Vitals never sends anything. The opt-in share pack is a file the player chooses to send;
+   everything in it passes the scrubber (`include/Vitals/Scrub.h`), and the list of files is fixed in `Share.cpp`.
 
 ## Start-up order
 

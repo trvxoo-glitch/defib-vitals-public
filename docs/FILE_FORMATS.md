@@ -29,7 +29,6 @@ ignore unknown fields and must not rely on field order.
 | `doctor_popup_choice` | the user pressed a button | `choice`: `continue`, `dont_show_again`, `stop_game` |
 | `doctor_popup_copy` | the user pressed Copy report (0.4.0) | `copied`, `chars` |
 | `share_pack` | a share pack was written (opt-in, 0.4.0) | `when` (`start`, `main_menu`), `files`, `bytes`, `scrubbed` (items replaced), `left_out` (files dropped by the size cap) |
-| `share_upload` | Vitals tried to send the share pack (opt-in, 0.4.0) | `result` (`sent`, `failed`), `reason` (`first`, `new_crash`, `weekly`), `code` and `bytes` when sent, `http_status` when failed (0 = no answer) |
 | `address` | one per checked ID | `name`, `id`, `source` (list file), `entry_kind` (`fn`/`ptr`/`data`), `checked_as`, `result`, `offset`, `bytes`, `expected`, `ptr_class` (also `listed_as_code_but_is_data`), `jump_target`, `hooked_by`, `owner_category`, `jump_hops`, `stub`, `expected_bytes_not_checked` |
 | `address_check_unavailable` | instead of the address check, when the Address Library is not usable | `address_library_file`, `state`, `problem` |
 | `error` | a step stopped on an exception (the game keeps running) | `step`, `what` |
@@ -167,10 +166,6 @@ left out and named in the manifest. The upload server accepts exactly these name
 `main_menu`), `files` (list of `{name, bytes, crc32}`), `left_out_for_size` (names).
 
 `share-id.txt`: the random install id, one line. Delete it for a new id.
-
-`share-sent.txt`: what was sent last, `key=value` lines: `last_sent` and `last_try` (Unix seconds), `code` (the
-server's `VTL-XXXX-XXXX` for the last pack, which deletes it), and one `crash=<file name>` per crash log already sent.
-Delete it to send again at the next launch.
 
 ## Vitals.ini
 

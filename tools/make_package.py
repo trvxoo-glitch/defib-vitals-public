@@ -33,8 +33,7 @@ SHARE_FOLDER = "20 Share - Yes"
 SHARE_MARKER = "share-optin.txt"
 SHARE_TEXT = """Vitals share pack: ON. You chose this in the installer ("Help improve Vitals").
 While this file exists, Vitals writes Vitals-Share.zip next to Vitals-Report.txt (Documents\\My Games\\Fallout4\\F4SE\\Vitals)
-after each session, with personal details scrubbed out, and sends it to the Vitals share server (first time, after a
-new crash, at most weekly). Keep it local only: set bShareSend=0 in Vitals.ini.
+after each session, with personal details scrubbed out. Vitals never sends it: you decide whether to share it.
 To turn it off, delete this file (or set bSharePack=0 in Vitals.ini). Vitals then deletes the pack at the next launch.
 """
 DOCS = ["README.md", "CHANGELOG.md", "AI_DISCLOSURE.md", "LICENSE", "EXCEPTIONS",

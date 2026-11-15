@@ -19,8 +19,8 @@ A message box appears at start-up **only** when something needs attention: a pro
 or an F4SE plugin that is installed but not running. The box shows on every launch until you fix the problem or press **Don't show**, and **Copy report** puts the whole report on the clipboard for a comment or bug report. Everything else stays in the report.
 
 **Optional: help find broken mods.** The installer's second page offers a share pack (off unless you pick it): a zip
-of your logs with your user name, PC name, emails, IP addresses, keys and private folder paths scrubbed out, that
-Vitals sends to its share server (first time, after a new crash, at most weekly). Nothing is sent without that opt-in. See [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
+of your logs with your user name, PC name, emails, IP addresses, keys and private folder paths scrubbed out, for you
+to send if you want to (upload page or GitHub issue). Vitals never sends anything. See [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
 Vitals is part of **Defib**, a project to bring abandoned F4SE mods back to life on every game version. The same
 plugin records what a mod porter needs: which engine functions are hooked and by whom, whether the Address Library
@@ -38,7 +38,7 @@ IDs a port relies on point at the expected code, Papyrus native functions per DL
 
 **Vortex or Mod Organizer 2:** install the archive like any other mod. The installer asks two questions:
 *Player* (recommended) or *Mod author / developer* (adds the Papyrus natives list and the engine layout probes), and
-whether to help improve Vitals by sending a scrubbed log pack (default: no).
+whether to make a share pack you can send (default: no).
 
 **By hand:** open the archive, copy the contents of `00 Core` into your game's `Data` folder, then the contents of
 `10 Settings - Player` (or `11 Settings - Developer`) into `Data` too. You should end up with
@@ -112,7 +112,7 @@ PROBLEMS
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Every report message, setting and output file, for players |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Problems and fixes |
 | [docs/FAQ.md](docs/FAQ.md) | Short answers |
-| [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md) | Exactly what Vitals reads, writes and sends (it sends nothing unless you opt in to the share pack) |
+| [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md) | Exactly what Vitals reads, writes and sends (it sends nothing) |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Adding rules, bug reports, code changes |
 | [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md) | Vitals.jsonl records, address lists, baselines, knowledge rules, breadcrumbs, status.json |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the plugin is built: start-up order, each source file, design rules |

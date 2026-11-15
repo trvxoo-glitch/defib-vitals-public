@@ -11,9 +11,7 @@ Not yet tested in game.
   (with Vortex) which mod installed each F4SE DLL. **Every file is scrubbed first:** your user name, PC name, emails, IP
   and MAC addresses, Steam ids, Windows account ids, keys and tokens, Mod Organizer profile names and private folder
   paths become placeholders, and text read from game memory in crash logs is removed. `scrub-report.txt` inside says
-  how many of each. **Vitals sends the zip** to the Vitals share server over HTTPS (the first time, after a new crash, at most weekly
-  otherwise) and puts the server's delete code in the report; `bShareSend=0` keeps it on your PC only. Nothing is written or
-  sent without the opt-in. Turn it off by deleting
+  how many of each. **Vitals still has no network code:** you decide whether to send the zip, by uploading it on the share page (https://vitals-share.vitalsguy.workers.dev) or attaching it to a GitHub issue. Turn it off by deleting
   `Vitals\share-optin.txt` or setting `bSharePack=0`; the next launch deletes the pack. Full list and reasons:
   `docs/PRIVACY_AND_SAFETY.md`.
 - **Copy report** button in the start-up box: copies the whole report to the clipboard and leaves the box open.

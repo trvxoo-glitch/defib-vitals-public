@@ -46,8 +46,8 @@ Optional, off unless you picked **Yes, help improve Vitals** in the installer (o
 `Vitals.ini`). After each session Vitals writes `Vitals-Share.zip` next to the report: the report, F4SE's logs, your
 load order, a few game settings, a short PC summary and recent crash logs, with your user name, PC name, emails, IP
 addresses, keys and private folder paths removed. Open it to see exactly what is inside; `scrub-report.txt` says how
-many items were removed. Vitals sends it to the Vitals share server the first time, after a new crash and at most
-weekly otherwise; the report shows a code that deletes the last pack sent. `bShareSend=0` keeps it on your PC only. Full details and how to turn it off:
+many items were removed. Vitals never sends it. To help, upload it at https://vitals-share.vitalsguy.workers.dev or attach it to a
+[GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues). Full details and how to turn it off:
 [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
 ## Severities

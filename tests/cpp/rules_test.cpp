@@ -453,35 +453,6 @@ static void ZipTests()
 	CHECK(zip.find("hello\n") != std::string::npos);
 }
 
-static void SendTests()
-{
-	using namespace Vitals::Share;
-	const std::int64_t       t = 1'800'000'000;
-	const std::vector<std::string> none, one{ "crash-a.log" }, two{ "crash-a.log", "crash-b.log" };
-	SendState st;
-	CHECK(SendReason(st, t, none) == "first");
-	st.lastSent = t;
-	st.crashes = one;
-	CHECK(SendReason(st, t + 60, one).empty());
-	CHECK(SendReason(st, t + 60, two) == "new_crash");
-	CHECK(SendReason(st, t + kResendSeconds, one) == "weekly");
-	CHECK(SendReason(st, t - 100, one) == "weekly");  // clock went back
-	st.lastTry = t + 100;
-	CHECK(SendReason(st, t + 200, two).empty());  // failed recently: wait
-	CHECK(SendReason(st, t + 100 + kRetrySeconds, two) == "new_crash");
-	st.code = "VTL-ABCD-2345";
-	const auto back = ParseSendState(FormatSendState(st));
-	CHECK(back.lastSent == st.lastSent && back.lastTry == st.lastTry && back.code == st.code && back.crashes == st.crashes);
-	CHECK(ParseSendState("last_sent=12x\ncode=nope\r\ncrash=\n").lastSent == 0);
-	CHECK(ParseSendState("code=nope\n").code.empty());
-	CHECK(ReplyCode(R"({"code":"VTL-ABCD-2345","files":3})") == "VTL-ABCD-2345");
-	CHECK(ReplyCode(R"({"code": "VTL-ABCD-2345"})") == "VTL-ABCD-2345");
-	CHECK(ReplyCode(R"({"code":"VTL-abcd-2345"})").empty());
-	CHECK(ReplyCode(R"({"code":"VTL-ABCD-23"})").empty());
-	CHECK(ReplyCode(R"({"error":"x"})").empty());
-	CHECK(ReplyCode(R"({"code":"VTL-ABCD-2345)").empty());
-}
-
 static void ShareTests()
 {
 	namespace H = Vitals::Share;
@@ -561,7 +532,6 @@ int main(int argc, char** argv)
 	ScrubTests();
 	ZipTests();
 	ShareTests();
-	SendTests();
 	RuntimeTagTests();
 	const int loader = argc > 1 ? RunLoaderCases(argv[1]) : 0;
 	// tests/scrub_cases.txt sits next to tests/loader_cases.txt

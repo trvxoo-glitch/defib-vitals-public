@@ -15,24 +15,15 @@ Vitals is meant to be left installed, so this page says plainly what it reads, w
 - Engine addresses listed in `Vitals\addresses\*.txt`, to compare their first bytes.
 
 ## What it writes
-Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vitals.jsonl` (plus kept history), `breadcrumbs.bin`, `status.json`, `popup_disabled.txt`, `hashes.txt`, and, only if you turn them on, local baselines and the share pack (`Vitals-Share.zip`, `share-id.txt`, `share-sent.txt`). Nothing is written anywhere else. The **Copy report** button in the start-up box puts the report on the clipboard when you press it.
+Only inside `Documents\My Games\Fallout4\F4SE\Vitals\`: the report, summary, `Vitals.jsonl` (plus kept history), `breadcrumbs.bin`, `status.json`, `popup_disabled.txt`, `hashes.txt`, and, only if you turn them on, local baselines and the share pack (`Vitals-Share.zip`, `share-id.txt`). Nothing is written anywhere else. The **Copy report** button in the start-up box puts the report on the clipboard when you press it.
 
 ## What it sends
-**Nothing, unless you opt in to the share pack.** No telemetry, no update check, no account. The only network code in Vitals
-sends the scrubbed share pack described below, to one address (`vitals-share.vitalsguy.workers.dev`), and it runs only when you picked
-**Yes, help improve Vitals** (or set `bSharePack=1`) and have not set `bShareSend=0`. Anyone can check this: the whole
-sender is `MaybeSend` and `Post` in `src/Share.cpp`, and the address is `Share::kUploadHost` in `include/Vitals/Share.h`.
+**Nothing.** It has no network code. No telemetry, no update check, no account. Files never leave your PC unless you send them.
 
 ## The share pack (opt-in, off by default)
 If you pick **Yes, help improve Vitals** in the installer (or set `bSharePack=1`), Vitals writes
-`Vitals-Share.zip` next to the report after each session and sends it to the Vitals share server.
-
-**When it is sent.** Over HTTPS, on a background thread, to the address built into Vitals (`Share::kUploadHost`): the
-first time, when the pack holds a crash log not sent before, and otherwise at most once a week. A failed send waits 6
-hours. Each send stores the server's code in `share-sent.txt`, and the report shows it: enter it on the upload page to
-delete that pack at once. The request carries only the zip and a `Vitals/<version>` user agent. The server stores no
-IP address, account or cookie, scrubs every file a second time, and deletes packs after 90 days (`server/README.md`).
-Set `bShareSend=0` to keep writing the zip but never send it.
+`Vitals-Share.zip` next to the report after each session. It is for you to send if you want to help find broken mods;
+Vitals never sends it.
 
 **What is in it.** A fixed list, never a whole folder:
 
@@ -76,26 +67,27 @@ Mod and plugin file names and SHA-256 hashes stay: they are the point of the pac
 **Ten layers.** The list above is an allowlist; raw files are summarised where a summary is enough; files are scrubbed
 twice (Vitals, then the upload server with the same rules); paths are folded; the install id is random (not from your
 PC) and a new one is made if you delete `share-id.txt`; you can read the zip before sending it and untick files on the
-upload page; nothing is written or sent unless you opted in, and one setting stops the sending; the server keeps nothing
-about the sender; packs are deleted after 90 days or on request; and only counts across five or more installs are ever
-published.
+upload page; nothing leaves without you; the server keeps nothing about the sender; packs are deleted after 90 days or
+on request; and only counts across five or more installs are ever published.
 
-**Sending it.** Automatic, for opted-in players (see *What it sends* above). You can also send a pack by hand: drag
-`Vitals-Share.zip` onto https://vitals-share.vitalsguy.workers.dev, where you see every file, can untick any, and get a
-code that deletes the pack. The server is in `server/` (see `server/README.md` for exactly what it stores: the pack, the
-Vitals and game version, the random install id and the date; no IP address, account or cookie).
+**Sending it.** Your choice, any time: attach it to a [GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues),
+or drag it onto the upload page, https://vitals-share.vitalsguy.workers.dev, where you see every file, can untick any, and get a code
+to quote in a bug report and to delete the pack. The server is in `server/` (see `server/README.md` for exactly what it stores: the pack, the Vitals and game
+version, the random install id and the date; no IP address, account or cookie).
+
+**Vitals itself never connects to it.** Sending is your browser's upload, not the plugin's: Vitals has no network code.
 
 **Who can read packs.** Only the project maintainer, with a private key. Every download is logged. Raw packs are never
 published, committed, posted or given to other people or services. What is published is counts across five or more
 installs (for example "this DLL fails to load on 40 setups"), and only after a person confirms it in game. A pack is
-deleted after 90 days, or at once with its code (the report shows the code of the last pack sent).
+deleted after 90 days, or at once with its code.
 
-**What the server can see.** The upload is an ordinary HTTPS request, so Cloudflare, who run the server, handle the
-connection like any website visit. We turn off request logging and store no IP address, account or cookie. The only
-trace of your address is a one-hour rate-limit counter made from a daily-changing hash of it, which cannot be matched
-across days.
+**What the server can see.** Your upload is an ordinary HTTPS request, so Cloudflare, who run the server, handle the
+connection like any website visit. Request logging is off and no IP address, account or cookie is stored. The only trace
+of your address is a one-hour rate-limit counter made from a daily-changing hash of it, which cannot be matched across
+days.
 
-**Turning it off.** To keep the zip but never send it, set `bShareSend=0`. To stop everything, delete `Data\F4SE\Plugins\Vitals\share-optin.txt`, set `bSharePack=0`, or reinstall and pick
+**Turning it off.** Delete `Data\F4SE\Plugins\Vitals\share-optin.txt`, set `bSharePack=0`, or reinstall and pick
 **No thanks**. At the next launch Vitals deletes `Vitals-Share.zip` and `share-id.txt`.
 
 ## Personal data

@@ -2,7 +2,7 @@
 
 **Will Vitals fix my mods?** No. It tells you what is wrong and what to do. It never edits, disables or moves files.
 
-**Is it safe to leave installed?** Yes. It is read only, and it sends nothing unless you opt in to the share pack. See [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md).
+**Is it safe to leave installed?** Yes. It is read only and sends nothing anywhere. See [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md).
 
 **Does it slow the game down?** It adds under a second at start-up (it reads each DLL in `Data\F4SE\Plugins` once) and nothing while you play.
 
@@ -24,9 +24,8 @@
 
 **Why does it say my `Fallout4Custom.ini` is missing settings?** Loose meshes, textures and interface files are ignored unless `bInvalidateOlderFiles=1` and an empty `sResourceDataDirsFinal=` are set under `[Archive]`. See the message's "what to do".
 
-**Does Vitals send my data anywhere?** Only if you opt in to the share pack. Then it writes a zip of your logs with personal details
-scrubbed out and sends it to the Vitals share server (first time, after a new crash, at most weekly); `bShareSend=0`
-keeps it on your PC. Without the opt-in Vitals sends nothing. See
+**Does Vitals send my data anywhere?** No. It has no network code. If you opt in to the share pack, it writes a zip
+of your logs with personal details scrubbed out, and you decide whether to send it. See
 [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
 **I opted in to the share pack. How do I stop it?** Delete `Data\F4SE\Plugins\Vitals\share-optin.txt`, or set
