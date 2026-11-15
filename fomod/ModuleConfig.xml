@@ -13,7 +13,7 @@
 				<group name="Who is this install for?" type="SelectExactlyOne">
 					<plugins order="Explicit">
 						<plugin name="Player (recommended)">
-							<description>Plugin doctor, environment report, address check and crash breadcrumbs. A message box appears at start-up only when something new needs attention (a problem that may crash the game, or an F4SE plugin that is not running). The full report is in Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt.
+							<description>Plugin doctor, environment report, address check and crash breadcrumbs. A message box appears at start-up while something needs attention (a problem that may crash the game, or an F4SE plugin that is not running); its Don't show button silences the plugins it listed. The full report is in Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt.
 
 Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.</description>
 							<files>
@@ -25,6 +25,31 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 							<description>Everything in Player, plus the developer options: a list of every Papyrus native function and the DLL that registered it, and the engine layout probes. Logs are larger and start-up is slightly slower. Use this when you write or port F4SE plugins.</description>
 							<files>
 								<folder source="11 Settings - Developer" destination="" />
+							</files>
+							<typeDescriptor><type name="Optional" /></typeDescriptor>
+						</plugin>
+					</plugins>
+				</group>
+			</optionalFileGroups>
+		</installStep>
+		<installStep name="Help improve Vitals">
+			<optionalFileGroups order="Explicit">
+				<group name="Help improve Vitals (optional)" type="SelectExactlyOne">
+					<plugins order="Explicit">
+						<plugin name="No thanks">
+							<description>Vitals keeps everything on your PC, as always. You can change your mind later: reinstall and pick the other option, or set bSharePack=1 in Vitals.ini.</description>
+							<typeDescriptor><type name="Recommended" /></typeDescriptor>
+						</plugin>
+						<plugin name="Make a share pack I can send">
+							<description>Vitals saves a share pack after each session: its own reports, F4SE's logs, your load order, a few game settings, a short PC summary (Windows, CPU, RAM, GPU) and your newest crash logs, in one zip (Vitals-Share.zip) in your Vitals folder.
+
+Before anything goes into the pack, Vitals scrubs personal details out of every file: your Windows user name and PC name, email and IP addresses, account ids, API keys and private folder paths are replaced with placeholders, and text read from game memory in crash logs is removed. Mod names stay. A scrub-report.txt inside lists how many of each were removed.
+
+Nothing is ever sent automatically: Vitals has no network code. You can open the zip and read it first, then share it yourself if you want to (a GitHub issue, or a link in a Nexus bug report).
+
+Turn it off at any time by deleting Data\F4SE\Plugins\Vitals\share-optin.txt or setting bSharePack=0 in Vitals.ini; Vitals then deletes its pack at the next launch. Privacy details: docs\PRIVACY_AND_SAFETY.md (also on GitHub).</description>
+							<files>
+								<folder source="20 Share - Yes" destination="" />
 							</files>
 							<typeDescriptor><type name="Optional" /></typeDescriptor>
 						</plugin>

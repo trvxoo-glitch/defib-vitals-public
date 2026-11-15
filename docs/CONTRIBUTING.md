@@ -10,6 +10,12 @@ A rule teaches the doctor to recognise something that breaks setups. Format and 
 4. **A plain message** that says what is wrong and what to do.
 
 Put experimental rules in your own `Vitals\knowledge\*.txt`; Vitals reads all of them and updates only replace `defib-known.txt`.
+A rule seen on one game version only names it: `oldfile@NG,AE | ...`.
+
+## Share your results
+If you opted in to the share pack, attach `Vitals-Share.zip` to an issue (it is already scrubbed; open it first to
+check). Maintainers count packs with `tools/share_inbox.py`: a not-running DLL seen in five or more installs with no
+rule becomes a candidate, and a person confirms it in game before it becomes a rule. Raw packs are never committed.
 
 ## Bug reports
 Include `Vitals-Report.txt` (safe to share) and, if asked, `Vitals.jsonl`; the game build, F4SE version and mod manager; and what you expected. For a wrong message, include the line.
@@ -18,5 +24,5 @@ Include `Vitals-Report.txt` (safe to share) and, if asked, `Vitals.jsonl`; the g
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) first, especially the design rules (read only, never stop the game, library-provided addresses only, exact build list).
 - Build: [BUILDING.md](BUILDING.md). Tests: `python -m unittest discover -s tests` must pass; CI also builds the DLL and checks the FOMOD package.
 - Keep player-facing text in plain language with a "what to do".
-- Update [FILE_FORMATS.md](FILE_FORMATS.md), the user guide and `CHANGELOG.md` with the change. The DLL's F4SE rules (`include/Vitals/Rules.h`) and `tools/f4se_dll_scan.py` change together, with a line in `tests/loader_cases.txt`.
+- Update [FILE_FORMATS.md](FILE_FORMATS.md), the user guide and `CHANGELOG.md` with the change. The DLL's F4SE rules (`include/Vitals/Rules.h`) and `tools/f4se_dll_scan.py` change together, with a line in `tests/loader_cases.txt`. The scrubber (`include/Vitals/Scrub.h`) and `server/scrub.js` change together, with a line in `tests/scrub_cases.txt`.
 - Never add files that belong to someone else (other mods' DLLs, `f4rd-runtime.bin`, game executables, baselines, Address Library files).

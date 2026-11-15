@@ -268,6 +268,31 @@ class PackageTests(unittest.TestCase):
             os.remove(os.path.join(out, "00 Core", "F4SE", "Plugins", "Vitals.dll"))
             self.assertEqual(make_package.check(out), 1)
 
+    def test_share_marker_only_in_opt_in_folder(self):
+        import make_package
+        with tempfile.TemporaryDirectory() as tmp:
+            dll = os.path.join(tmp, "Vitals.dll")
+            open(dll, "wb").write(b"MZ")
+            out = os.path.join(tmp, "package")
+            self.assertEqual(make_package.build(dll, out), 0)
+            marker = os.path.join(out, "20 Share - Yes", "F4SE", "Plugins", "Vitals", "share-optin.txt")
+            self.assertIn("bSharePack=0", open(marker, encoding="utf-8").read())
+            # the opt-in is never pre-selected
+            cfg = open(os.path.join(out, "fomod", "ModuleConfig.xml"), encoding="utf-8").read()
+            self.assertIn("Make a share pack I can send", cfg)
+            # a marker anywhere else would switch sharing on for everyone
+            stray = os.path.join(out, "00 Core", "F4SE", "Plugins", "Vitals", "share-optin.txt")
+            open(stray, "w").write("x")
+            self.assertEqual(make_package.check(out), 1)
+            os.remove(stray)
+            self.assertEqual(make_package.check(out), 0)
+            cfgp = os.path.join(out, "fomod", "ModuleConfig.xml")
+            bad = cfg.replace('<folder source="20 Share - Yes" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Optional" />',
+                              '<folder source="20 Share - Yes" destination="" />\n\t\t\t\t\t\t\t</files>\n\t\t\t\t\t\t\t<typeDescriptor><type name="Recommended" />')
+            self.assertNotEqual(bad, cfg)
+            open(cfgp, "w", encoding="utf-8").write(bad)
+            self.assertEqual(make_package.check(out), 1)
+
 
 class AgeNoteTests(unittest.TestCase):
     def _dll(self, tmp, ts):
@@ -365,7 +390,56 @@ class LoaderRulesTests(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+class ShareInboxTests(unittest.TestCase):
+    def _pack(self, folder, n, install, dlls, crash=None):
+        import zipfile
+        path = os.path.join(folder, f"p{n}.zip")
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as z:
+            z.writestr("manifest.json", json.dumps({"format": "vitals-share 1", "install_id": install, "runtime": "AE", "game_version": "1.11.240"}))
+            lines = [json.dumps({"kind": "doctor_issue", "severity": "warning", "category": "plugin_dll", "subject": d, "reason": "no_version_data"}) for d in dlls]
+            z.writestr("Vitals.jsonl", "\n".join(lines) + "\n{\"kind\": cut off")
+            z.writestr("dll-sources.txt", "header\ndll | mod folder\n" + "".join(f"{d} | Mod-{d}-1\n" for d in dlls))
+            z.writestr("papyrus-summary.txt", '  3x  Unbound native function "GetVersion" in object "SUP_F4SE" -- x\n')
+            if crash:
+                z.writestr("crash/crash-1.log", crash)
+        return path
+
+    def test_summary_counts_installs_and_finds_candidates(self):
+        import share_inbox
+        with tempfile.TemporaryDirectory() as tmp:
+            crash = 'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF6 Fallout4.exe+2a3b4c5\n\nPROBABLE CALL STACK:\n\t[0] 0x1 X.dll+0001234\n'
+            for i in range(6):
+                self._pack(tmp, i, f"{i:032x}", ["NewThing.dll", "XDI.dll"], crash if i < 2 else None)
+            self._pack(tmp, 9, f"{0:032x}", ["NewThing.dll"])  # same install again: counted once
+            open(os.path.join(tmp, "junk.zip"), "wb").write(b"not a zip")
+            text, info = share_inbox.summarize(tmp, min_installs=5)
+            self.assertEqual(info["installs"], 6)
+            self.assertEqual(info["packs"], 7)
+            self.assertIn("NewThing.dll", info["candidates"])
+            self.assertNotIn("XDI.dll", info["candidates"])  # defib-census.txt has a rule for it
+            self.assertIn("| Fallout4.exe+2A3B4C5 | 2 |", text)
+            self.assertIn("| X.dll | 2 |", text)
+            self.assertIn("| SUP_F4SE.GetVersion | 6 |", text)
+            self.assertIn("Mod-NewThing.dll-1", text)
+
+
 class PreflightEdgeTests(unittest.TestCase):
+    def test_rule_runtime_tags(self):
+        import defib_preflight
+        with tempfile.TemporaryDirectory() as tmp:
+            game = os.path.join(tmp, "game")
+            os.makedirs(os.path.join(game, "Data", "Interface"))
+            swf = os.path.join(game, "Data", "Interface", "MainMenu.swf")
+            open(swf, "w").write("x")
+            os.utime(swf, (1577836800, 1577836800))  # 2020
+            rules = os.path.join(tmp, "r.txt")
+            open(rules, "w").write("oldfile@NG,AE | Data\\Interface\\MainMenu.swf | 2024-04-25 | problem | old menu\n")
+            r = defib_preflight.load_rules([rules])
+            self.assertEqual(r[0]["kind"], "oldfile")
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.11.240", [])), 1)
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.10.984", [])), 1)
+            self.assertEqual(len(defib_preflight.check_rules(game, r, "1.10.163", [])), 0)
+
     def test_bad_rule_date_is_skipped(self):
         import defib_preflight
         with tempfile.TemporaryDirectory() as game:

@@ -39,6 +39,7 @@ namespace Vitals
 		};
 
 		void*                    g_hook{ nullptr };  // the CBT hook used to relabel the message box buttons
+		void*                    g_box{ nullptr };   // the message box window while it is open (clipboard owner)
 		std::mutex               g_lock;
 		std::vector<Issue>       g_issues;
 		std::vector<std::string> g_info;       // short facts for the report header
@@ -296,6 +297,10 @@ namespace Vitals
 					// a message may itself contain '|': join the rest
 					for (std::size_t i = 5; i < f.size(); ++i)
 						f[4] += " | " + f[i];
+					// "oldfile@NG,AE": the rule applies only to those runtimes (Rules::RuleRuntimes)
+					std::string kind;
+					if (!Rules::RuleRuntimes(f[0], RuntimeName(), kind))
+						continue;
 					if (!seen.insert(Lower(f[0]) + "|" + Lower(f[1]) + "|" + Lower(f[2])).second)
 						continue;
 					// Only three severities exist. Anything else would be counted nowhere and never shown, which would
@@ -307,7 +312,7 @@ namespace Vitals
 						Summary(std::format("Knowledge rule with unknown severity \"{}\" in {} (used as warning): {}", f[3], Narrow(path.filename().wstring()), line));
 						sev = "warning";
 					}
-					rules.push_back({ Lower(f[0]), f[1], f[2], sev, f[4], Narrow(path.filename().wstring()) });
+					rules.push_back({ kind, f[1], f[2], sev, f[4], Narrow(path.filename().wstring()) });
 				}
 			}
 			return rules;
@@ -717,6 +722,7 @@ namespace Vitals
 				for (const auto& n : g_addrNotes)
 					out << "  " << Redact(n) << "\n";
 			}
+			out << ShareReportText();
 			out << "\nDetails: Vitals.jsonl and Vitals-summary.txt in this folder. Vitals only reads; it changes nothing in your game.\n";
 		}
 
@@ -735,9 +741,11 @@ namespace Vitals
 			const auto    callNext = reinterpret_cast<CallNext_t>(user32 ? REX::W32::GetProcAddress(user32, "CallNextHookEx") : nullptr);
 			if (a_code == kActivate && setText) {
 				const auto dlg = reinterpret_cast<void*>(a_wParam);
+				g_box = dlg;
 				setText(dlg, 3, L"Stop game");          // IDABORT
 				setText(dlg, 4, L"Don't show");          // IDRETRY
 				setText(dlg, 5, L"Continue");           // IDIGNORE
+				setText(dlg, 9, L"Copy report");        // IDHELP
 			}
 			const auto hook = g_hook;  // the handle is ignored by CallNextHookEx on current Windows, but pass the real one
 			const auto r = callNext ? callNext(hook, a_code, a_wParam, a_lParam) : 0;
@@ -749,7 +757,68 @@ namespace Vitals
 			return r;
 		}
 
-		// 3 = Stop game, 4 = Don't show, 5 = Continue
+		// Copy report (the box's Help button): puts Vitals-Report.txt on the clipboard and leaves the box open. The
+		// report is already scrubbed of the user name. Windows calls this for the Help button instead of closing the box.
+		void __stdcall CopyReport(void* /*a_helpInfo*/)
+		{
+			using Open_t = int(__stdcall*)(void*);
+			using Empty_t = int(__stdcall*)();
+			using Set_t = void*(__stdcall*)(std::uint32_t, void*);
+			using Close_t = int(__stdcall*)();
+			using SetText_t = int(__stdcall*)(void*, const wchar_t*);
+			using Alloc_t = void*(__stdcall*)(std::uint32_t, std::size_t);
+			using Lock_t = void*(__stdcall*)(void*);
+			using Unlock_t = int(__stdcall*)(void*);
+			using Free_t = void*(__stdcall*)(void*);
+			using Item_t = void*(__stdcall*)(void*, int);
+			const auto user32 = REX::W32::GetModuleHandleW(L"user32.dll");
+			const auto kernel32 = REX::W32::GetModuleHandleW(L"kernel32.dll");
+			if (!user32 || !kernel32)
+				return;
+			const auto open = reinterpret_cast<Open_t>(REX::W32::GetProcAddress(user32, "OpenClipboard"));
+			const auto empty = reinterpret_cast<Empty_t>(REX::W32::GetProcAddress(user32, "EmptyClipboard"));
+			const auto set = reinterpret_cast<Set_t>(REX::W32::GetProcAddress(user32, "SetClipboardData"));
+			const auto close = reinterpret_cast<Close_t>(REX::W32::GetProcAddress(user32, "CloseClipboard"));
+			const auto setText = reinterpret_cast<SetText_t>(REX::W32::GetProcAddress(user32, "SetWindowTextW"));
+			const auto alloc = reinterpret_cast<Alloc_t>(REX::W32::GetProcAddress(kernel32, "GlobalAlloc"));
+			const auto lock = reinterpret_cast<Lock_t>(REX::W32::GetProcAddress(kernel32, "GlobalLock"));
+			const auto unlock = reinterpret_cast<Unlock_t>(REX::W32::GetProcAddress(kernel32, "GlobalUnlock"));
+			const auto release = reinterpret_cast<Free_t>(REX::W32::GetProcAddress(kernel32, "GlobalFree"));
+			const auto item = reinterpret_cast<Item_t>(REX::W32::GetProcAddress(user32, "GetDlgItem"));
+			if (!open || !empty || !set || !close || !alloc || !lock || !unlock || !release)
+				return;
+			std::ifstream in(OutputDir() / L"Vitals-Report.txt", std::ios::binary);
+			const std::string report((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			std::wstring text;
+			for (const auto c : Widen(report)) {  // the clipboard wants Windows line ends
+				if (c == L'\n' && (text.empty() || text.back() != L'\r'))
+					text += L'\r';
+				text += c;
+			}
+			constexpr std::uint32_t kMoveable = 0x2, kUnicodeText = 13;
+			const auto              mem = alloc(kMoveable, (text.size() + 1) * sizeof(wchar_t));
+			if (!mem)
+				return;
+			if (const auto p = lock(mem)) {
+				std::memcpy(p, text.c_str(), (text.size() + 1) * sizeof(wchar_t));
+				unlock(mem);
+			}
+			bool done = false;
+			// a window must own the clipboard, or SetClipboardData fails: the message box itself
+			if (open(g_box)) {
+				empty();
+				done = set(kUnicodeText, mem) != nullptr;
+				close();
+			}
+			if (!done)
+				release(mem);  // on success the clipboard owns it
+			// relabel the button itself (the help info may name the box, whose title must stay)
+			if (const auto button = (item && g_box) ? item(g_box, 9) : nullptr; setText && button)
+				setText(button, done ? L"Copied" : L"Copy failed");
+			Emit("doctor_popup_copy", Json().Bool("copied", done).UNum("chars", text.size()));
+		}
+
+		// 3 = Stop game, 4 = Don't show, 5 = Continue (Copy report keeps the box open)
 		int ShowPopup(const std::wstring& a_text)
 		{
 			using SetHook_t = void*(__stdcall*)(int, std::intptr_t(__stdcall*)(int, std::uintptr_t, std::intptr_t), void*, std::uint32_t);
@@ -757,8 +826,32 @@ namespace Vitals
 			const auto setHook = reinterpret_cast<SetHook_t>(user32 ? REX::W32::GetProcAddress(user32, "SetWindowsHookExW") : nullptr);
 			if (setHook)
 				g_hook = setHook(5 /*WH_CBT*/, &RenameButtons, nullptr, REX::W32::GetCurrentThreadId());
-			constexpr std::uint32_t kAbortRetryIgnore = 0x2, kWarning = 0x30, kDefButton3 = 0x200, kSetForeground = 0x10000, kTopmost = 0x40000;
-			const auto              r = REX::W32::MessageBoxW(nullptr, a_text.c_str(), L"Vitals - mod setup problems", kAbortRetryIgnore | kWarning | kDefButton3 | kSetForeground | kTopmost);
+			constexpr std::uint32_t kAbortRetryIgnore = 0x2, kWarning = 0x30, kDefButton3 = 0x200, kHelp = 0x4000, kSetForeground = 0x10000, kTopmost = 0x40000;
+			// MessageBoxIndirectW: the only message box with a callback for its Help button (Copy report)
+			struct MsgBoxParams
+			{
+				std::uint32_t  size;
+				void*          owner;
+				void*          instance;
+				const wchar_t* text;
+				const wchar_t* caption;
+				std::uint32_t  style;
+				const wchar_t* icon;
+				std::uintptr_t contextHelpId;
+				void(__stdcall* callback)(void*);
+				std::uint32_t  languageId;
+			};
+			using Indirect_t = int(__stdcall*)(const MsgBoxParams*);
+			const auto indirect = reinterpret_cast<Indirect_t>(user32 ? REX::W32::GetProcAddress(user32, "MessageBoxIndirectW") : nullptr);
+			constexpr std::uint32_t style = kAbortRetryIgnore | kWarning | kDefButton3 | kSetForeground | kTopmost;
+			int r = 0;
+			if (indirect) {
+				const MsgBoxParams p{ sizeof(MsgBoxParams), nullptr, nullptr, a_text.c_str(), L"Vitals - mod setup problems", style | kHelp, nullptr, 0, &CopyReport, 0 };
+				r = indirect(&p);
+			} else {
+				r = REX::W32::MessageBoxW(nullptr, a_text.c_str(), L"Vitals - mod setup problems", style);
+			}
+			g_box = nullptr;
 			if (g_hook) {  // the box never activated (should not happen): do not leave the hook installed
 				using Unhook_t = std::int32_t(__stdcall*)(void*);
 				if (const auto unhook = reinterpret_cast<Unhook_t>(user32 ? REX::W32::GetProcAddress(user32, "UnhookWindowsHookEx") : nullptr))
@@ -853,7 +946,7 @@ namespace Vitals
 				text += "\n";
 			}
 			text += "Full report with what to do: " + ReportPathText() +
-			        "\n\nContinue: start the game (this box shows again next launch).   Don't show: stop listing these plugins (problems that may crash the game still show).   Stop game: close it now so you can fix this first.";
+			        "\n\nContinue: start the game (this box shows again next launch).   Don't show: stop listing these plugins (problems that may crash the game still show).   Stop game: close it now so you can fix this first.   Copy report: copy the full report to paste into a comment or bug report.";
 			Emit("doctor_popup", Json().UNum("crash_risks", crashShown.size()).UNum("not_running", dllShown.size()));
 			const auto choice = ShowPopup(Widen(text));
 			if (choice == 4) {

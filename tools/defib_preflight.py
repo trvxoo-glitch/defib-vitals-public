@@ -380,8 +380,9 @@ def load_rules(paths):
             key = (f[0].lower(), f[1].lower(), f[2].lower()) if len(f) >= 5 else None
             if key and key not in seen:
                 seen.add(key)
-                rules.append({"kind": f[0].lower(), "match": f[1], "extra": f[2], "severity": f[3].lower(),
-                              "message": " | ".join(f[4:])})
+                kind, _, eras = f[0].lower().partition("@")  # "oldfile@ng,ae": only on those game versions
+                rules.append({"kind": kind.strip(), "eras": {e.strip().upper() for e in eras.split(",") if e.strip()} if _ else None,
+                              "match": f[1], "extra": f[2], "severity": f[3].lower(), "message": " | ".join(f[4:])})
     return rules
 
 
@@ -402,8 +403,11 @@ def check_rules(game, rules, runtime, dll_issues):
     plugins = os.path.join(game, "Data", "F4SE", "Plugins")
     refused = {i["subject"].lower() for i in dll_issues if i["category"] == "plugin_dll"}  # will not run, for any reason
     blobs = {}
+    era = RUNTIMES[runtime][1] if runtime in RUNTIMES else None
     for r in rules:
         k = r["kind"]
+        if r.get("eras") is not None and era not in r["eras"]:
+            continue  # same as Vitals' Rules::RuleRuntimes
         if k == "needs":
             users = []
             for p in glob.glob(os.path.join(plugins, "*.dll")):

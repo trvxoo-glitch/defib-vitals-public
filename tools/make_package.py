@@ -11,11 +11,13 @@ Layout of the release archive (the zip CI publishes is this folder's contents):
   00 Core/F4SE/Plugins/Vitals/knowledge/      plugin doctor rules
   10 Settings - Player/F4SE/Plugins/Vitals.ini       default settings (dist/.../Vitals.ini as is)
   11 Settings - Developer/F4SE/Plugins/Vitals.ini    same file with the developer options on
+  20 Share - Yes/F4SE/Plugins/Vitals/share-optin.txt  opt-in marker for the share pack (installer page 2, default No)
   Docs/                                        README, user guide, troubleshooting, changelog, licences
 Manual install: copy the contents of "00 Core" and of ONE settings folder into the game's Data folder.
 
 `check` fails when a folder or file named in ModuleConfig.xml is missing, when the two info.xml versions
-disagree with xmake.lua, or when a settings folder has no Vitals.ini. Standard library only.
+disagree with xmake.lua, when a settings folder has no Vitals.ini, or when the share-pack opt-in marker is anywhere
+but "20 Share - Yes" (it must never be installed without the player choosing it). Standard library only.
 """
 import argparse
 import os
@@ -27,6 +29,13 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUG = os.path.join("F4SE", "Plugins")
 DEVELOPER = {"bPapyrusNatives": "1", "bLayoutProbes": "1"}
+SHARE_FOLDER = "20 Share - Yes"
+SHARE_MARKER = "share-optin.txt"
+SHARE_TEXT = """Vitals share pack: ON. You chose this in the installer ("Help improve Vitals").
+While this file exists, Vitals writes Vitals-Share.zip next to Vitals-Report.txt (Documents\\My Games\\Fallout4\\F4SE\\Vitals)
+after each session, with personal details scrubbed out. Vitals never sends it: you decide whether to share it.
+To turn it off, delete this file (or set bSharePack=0 in Vitals.ini). Vitals then deletes the pack at the next launch.
+"""
 DOCS = ["README.md", "CHANGELOG.md", "AI_DISCLOSURE.md", "LICENSE", "EXCEPTIONS",
         "docs/USER_GUIDE.md", "docs/TROUBLESHOOTING.md", "docs/FAQ.md", "docs/PRIVACY_AND_SAFETY.md", "docs/CONTRIBUTING.md",
         "docs/FILE_FORMATS.md", "docs/ARCHITECTURE.md", "docs/BUILDING.md", "docs/MAINTAINING.md", "docs/HISTORY.md", "docs/ROADMAP.md"]
@@ -72,6 +81,10 @@ def build(dll, out):
         os.makedirs(d)
         with open(os.path.join(d, "Vitals.ini"), "w", encoding="utf-8", newline="\r\n") as f:
             f.write(text)
+    share = os.path.join(out, SHARE_FOLDER, PLUG, "Vitals")
+    os.makedirs(share)
+    with open(os.path.join(share, SHARE_MARKER), "w", encoding="utf-8", newline="\r\n") as f:
+        f.write(SHARE_TEXT)
     os.makedirs(os.path.join(out, "fomod"))
     v = version()
     info = open(os.path.join(ROOT, "fomod", "info.xml"), encoding="utf-8").read()
@@ -108,6 +121,21 @@ def check(pkg):
             errors.append(f"settings folder '{s}' has no {PLUG}\\Vitals.ini")
     if not os.path.isfile(os.path.join(pkg, "00 Core", PLUG, "Vitals.dll")):
         errors.append("00 Core has no Vitals.dll")
+    # the share-pack marker turns sharing on: it may only ship in the opt-in folder, and only that folder may hold it
+    for dirpath, _dirs, files in os.walk(pkg):
+        for f in files:
+            if f.lower() == SHARE_MARKER:
+                rel = os.path.relpath(os.path.join(dirpath, f), pkg).replace(os.sep, "/")
+                if rel != f"{SHARE_FOLDER}/F4SE/Plugins/Vitals/{SHARE_MARKER}":
+                    errors.append(f"share-pack opt-in marker found outside the opt-in folder: {rel}")
+    if not os.path.isfile(os.path.join(pkg, SHARE_FOLDER, PLUG, "Vitals", SHARE_MARKER)):
+        errors.append(f"{SHARE_FOLDER} has no {SHARE_MARKER}")
+    if any(s == SHARE_FOLDER for _t, s in sources):
+        default = [p for p in tree.iter("plugin") if any(f.get("source") == SHARE_FOLDER for f in p.iter("folder"))]
+        for p in default:
+            t = p.find("typeDescriptor/type")
+            if t is None or t.get("name") != "Optional":
+                errors.append(f"the share-pack option must be Optional (never pre-selected), not {t.get('name') if t is not None else 'unset'}")
     m = ET.parse(info).getroot().find("Version")
     v = version()
     if m is None or m.text != v or m.get("MachineVersion") != v:

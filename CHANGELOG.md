@@ -2,6 +2,30 @@
 
 All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed.
 
+## 0.4.0 (share pack, Copy report)
+Not yet tested in game.
+- **Optional share pack, off unless you choose it.** The installer has a second page, *Help improve Vitals*, with
+  **No thanks** selected. If you pick **Make a share pack I can send**, Vitals writes `Vitals-Share.zip` next to the
+  report after each session: its own reports and logs, F4SE's logs, your load order, 22 named game INI settings, a short
+  PC summary (Windows, CPU, cores, RAM, GPU), up to 3 recent crash logs, a count-only summary of the Papyrus log, and
+  (with Vortex) which mod installed each F4SE DLL. **Every file is scrubbed first:** your user name, PC name, emails, IP
+  and MAC addresses, Steam ids, Windows account ids, keys and tokens, Mod Organizer profile names and private folder
+  paths become placeholders, and text read from game memory in crash logs is removed. `scrub-report.txt` inside says
+  how many of each. **Vitals still has no network code:** you decide whether to send the zip. Turn it off by deleting
+  `Vitals\share-optin.txt` or setting `bSharePack=0`; the next launch deletes the pack. Full list and reasons:
+  `docs/PRIVACY_AND_SAFETY.md`.
+- **Copy report** button in the start-up box: copies the whole report to the clipboard and leaves the box open.
+- **Knowledge rules can name game versions** (`oldfile@NG,AE`). The old main-menu and font-file rules now apply only
+  to Next-Gen and Anniversary, where those files break; Old-Gen players no longer see them. The offline preflight
+  reads the same tags.
+- **Upload server and inbox for share packs** (in the repository, not in the mod): `server/` is a small Cloudflare
+  Worker with a private bucket that checks and scrubs every pack again, keeps nothing about the sender and deletes
+  packs after 90 days; `tools/share_inbox.py` counts not-running DLLs, crash locations and unbound Papyrus functions
+  across installs. Not deployed yet.
+- Next-Gen 1.10.984: a player confirmed Vitals works (36 of 43 plugins running, 772-plugin load order).
+- `Vitals.ini`: the `iPopupMode` comment describes 0.3.2's behaviour (the box shows every launch while it has
+  something to list).
+
 ## 0.3.2 (start-up box)
 Not yet tested in game.
 - **The start-up box now shows on every launch until you press Don't show or fix the problem.** Before, pressing

@@ -1,0 +1,10 @@
+{
+  "name": "vitals-share-server",
+  "private": true,
+  "type": "module",
+  "description": "Upload page and private storage for Vitals share packs (Cloudflare Worker + R2). See README.md.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "GPL-3.0-or-later"
+}

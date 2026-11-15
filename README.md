@@ -15,8 +15,12 @@ One small F4SE plugin. Install it, start the game once, and read
 * **What changed since my last launch?** Every session is kept; one command shows plugins added or removed and
   engine functions newly hooked, and by which DLL.
 
-A message box appears at start-up **only** when something new needs attention: a problem that may crash the game,
-or an F4SE plugin that is installed but not running. The box shows on every launch until you fix the problem or press **Don't show**. Everything else stays in the report.
+A message box appears at start-up **only** when something needs attention: a problem that may crash the game,
+or an F4SE plugin that is installed but not running. The box shows on every launch until you fix the problem or press **Don't show**, and **Copy report** puts the whole report on the clipboard for a comment or bug report. Everything else stays in the report.
+
+**Optional: help find broken mods.** The installer's second page offers a share pack (off unless you pick it): a zip
+of your logs with your user name, PC name, emails, IP addresses, keys and private folder paths scrubbed out, for you
+to send if you want to. Vitals never sends anything. See [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
 Vitals is part of **Defib**, a project to bring abandoned F4SE mods back to life on every game version. The same
 plugin records what a mod porter needs: which engine functions are hooked and by whom, whether the Address Library
@@ -24,7 +28,7 @@ IDs a port relies on point at the expected code, Papyrus native functions per DL
 
 | | |
 | --- | --- |
-| Game versions | 1.10.163 (Old-Gen, tested), 1.10.980/984 (Next-Gen, built, untested), 1.11.137 to 1.11.240 (Anniversary, tested on 1.11.240). One DLL for all. |
+| Game versions | 1.10.163 (Old-Gen, tested), 1.10.980/984 (Next-Gen, a player confirmed 1.10.984), 1.11.137 to 1.11.240 (Anniversary, tested on 1.11.240). One DLL for all. |
 | Requires | [F4SE](https://www.nexusmods.com/fallout4/mods/42147) for your game version, and [Address Library for F4SE Plugins](https://www.nexusmods.com/fallout4/mods/47327) (without it Vitals still starts and says so; only the address check is skipped) |
 | Safe | Reads only. Never writes to game memory, installs no hooks, adds no plugin (.esp) and no save data. Remove it any time. |
 | Works with | Buffout 4, Buffout 4 NG, Addictol and their crash loggers, CLASSIC, LOOT, Vortex, Mod Organizer 2 |
@@ -32,8 +36,9 @@ IDs a port relies on point at the expected code, Papyrus native functions per DL
 
 ## Install
 
-**Vortex or Mod Organizer 2:** install the archive like any other mod. The installer asks one question:
-*Player* (recommended) or *Mod author / developer* (adds the Papyrus natives list and the engine layout probes).
+**Vortex or Mod Organizer 2:** install the archive like any other mod. The installer asks two questions:
+*Player* (recommended) or *Mod author / developer* (adds the Papyrus natives list and the engine layout probes), and
+whether to make a share pack you can send (default: no).
 
 **By hand:** open the archive, copy the contents of `00 Core` into your game's `Data` folder, then the contents of
 `10 Settings - Player` (or `11 Settings - Developer`) into `Data` too. You should end up with

@@ -7,6 +7,8 @@
 #   Special names: {ENB}, {ADDRESS_LIBRARY} (the Address Library file for the running game version).
 #   oldfile  match = loose file relative to the game folder. extra = date YYYY-MM-DD. Older than that -> issue.
 #   file     match = file relative to the game folder. Present -> issue.
+#   Any kind can name the game versions it applies to: oldfile@NG,AE (OG = 1.10.163, NG = 1.10.980/984, AE = 1.11.x).
+#   Without it the rule applies to every version. Vitals before 0.4.0 skips rules with a version list.
 # severity: problem (may crash the game; always shown in the start-up box) | warning | info.
 # A 'dll ... refused' rule's message becomes the advice for that DLL in the report (its severity is used if higher).
 # Every rule here comes from a finding we confirmed in game (Defib census notes, dates given). Add your own rules

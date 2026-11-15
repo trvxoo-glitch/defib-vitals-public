@@ -27,8 +27,28 @@ For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHI
 | `breadcrumbs.bin`, `breadcrumbs.prev.bin` | Which port hook ran last (only useful with Defib ports) |
 | `status.json` | How far the game got (for scripts) |
 | `hashes.txt` | Remembered SHA-256 of each F4SE DLL, so unchanged DLLs are not read again (safe to delete) |
+| `Vitals-Share.zip`, `share-id.txt` | Only if you opted in: your logs with personal details scrubbed, for you to send if you want to help. See [Share pack](#share-pack) |
 
 Your Windows user name is replaced with `<user>` in every file, so the files are safe to share.
+
+## Start-up box buttons
+
+| Button | What it does |
+| --- | --- |
+| Continue | Starts the game. The box shows again next launch while something is listed |
+| Don't show | Stops listing the plugins shown (problems that may crash the game still show) |
+| Stop game | Closes the game so you can fix things first |
+| Copy report | Copies the whole report to the clipboard (the box stays open), to paste into a comment or bug report |
+
+## Share pack
+
+Optional, off unless you picked **Make a share pack I can send** in the installer (or set `bSharePack=1` in
+`Vitals.ini`). After each session Vitals writes `Vitals-Share.zip` next to the report: the report, F4SE's logs, your
+load order, a few game settings, a short PC summary and recent crash logs, with your user name, PC name, emails, IP
+addresses, keys and private folder paths removed. Open it to see exactly what is inside; `scrub-report.txt` says how
+many items were removed. Vitals never sends it. To help, attach it to a
+[GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues). Full details and how to turn it off:
+[PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
 ## Severities
 

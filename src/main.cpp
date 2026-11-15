@@ -39,10 +39,13 @@ namespace
 			// Before the game reads its .esm/.esp files: a load order that is about to crash can still be reported.
 			if (s.doctor)
 				Vitals::Guarded("doctor", Vitals::RunDoctor);
+			// opt-in share pack: the previous session's files, even if this launch never reaches the menu
+			Vitals::Guarded("share_pack", [] { Vitals::WriteSharePack("start"); });
 			break;
 		case M::kGameDataReady:
 			if (s.addressCheck)
 				Vitals::Guarded("address_check", Vitals::CheckAddresses);
+			Vitals::Guarded("share_pack", [] { Vitals::WriteSharePack("main_menu"); });
 			// Deferred to the game's next task tick: plugins that loaded after Vitals get this same message after us, and
 			// some register their Papyrus natives in it.
 			if (s.papyrusNatives) {

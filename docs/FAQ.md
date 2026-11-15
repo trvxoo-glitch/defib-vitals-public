@@ -14,7 +14,7 @@
 
 **The start-up box is annoying.** Press **Don't show** in the box: it stops listing those plugins, and only a problem that may crash the game opens it again. **Continue** only starts the game, so the box comes back next launch. Or set `iPopupMode=0` in `Vitals.ini` to turn it off completely. The report is still written. By default each item is shown once.
 
-**Which game versions work?** 1.10.163 (Old-Gen, tested), 1.10.980/984 (Next-Gen, built, untested), 1.11.137 to 1.11.240 (Anniversary, tested on 1.11.240). One file for all.
+**Which game versions work?** 1.10.163 (Old-Gen, tested), 1.10.980/984 (Next-Gen, a player confirmed 1.10.984), 1.11.137 to 1.11.240 (Anniversary, tested on 1.11.240). One file for all.
 
 **Does it work with Mod Organizer 2?** Yes. Under MO2 the load order Vitals reads is the profile's `plugins.txt` as the game sees it.
 
@@ -23,3 +23,13 @@
 **How do I share my results safely?** Send `Vitals-Report.txt`. Your Windows user name is already replaced.
 
 **Why does it say my `Fallout4Custom.ini` is missing settings?** Loose meshes, textures and interface files are ignored unless `bInvalidateOlderFiles=1` and an empty `sResourceDataDirsFinal=` are set under `[Archive]`. See the message's "what to do".
+
+**Does Vitals send my data anywhere?** No. It has no network code. If you opt in to the share pack, it writes a zip
+of your logs with personal details scrubbed out, and you decide whether to send it. See
+[PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
+
+**I opted in to the share pack. How do I stop it?** Delete `Data\F4SE\Plugins\Vitals\share-optin.txt`, or set
+`bSharePack=0` in `Vitals.ini`. The next launch deletes the pack and its random id.
+
+**Can a rule apply to one game version only?** Yes, since 0.4.0: write the kind as `oldfile@NG,AE` (see
+[FILE_FORMATS.md](FILE_FORMATS.md#knowledge-rules-dataf4sepluginsvitalsknowledgetxt)).

@@ -19,6 +19,7 @@ namespace Vitals
 		bool          doctor{ true };           // plugin doctor: why DLLs were refused, load-order masters, known problems
 		std::uint32_t popupMode{ 1 };           // 0 = never, 1 = when the problem list changes, 2 = every launch
 		std::uint32_t keepSessions{ 5 };        // copies of earlier Vitals.jsonl kept in Vitals\history (0 = none)
+		int           sharePack{ -1 };          // -1 = follow the installer (Vitals\share-optin.txt), 0 = off, 1 = on
 	};
 	const Settings& GetSettings();
 	void            LoadSettings();
@@ -87,6 +88,9 @@ namespace Vitals
 	void ReportEnvironment();  // kPostPostLoad
 	void RunDoctor();          // kPostPostLoad: plugin doctor, load-order and known-problem checks, Vitals-Report.txt
 	void DoctorAddressNote(std::string_view a_line);  // kGameDataReady: add the address-check result to Vitals-Report.txt
+	bool SharePackEnabled();   // opt-in: bSharePack, or the installer's share-optin.txt
+	void WriteSharePack(std::string_view a_when);  // background thread; when off, removes an old pack
+	std::string ShareReportText();  // the report's share-pack section (empty when off)
 	void CheckAddresses();     // kGameDataReady
 	void RecheckPointers();    // after a save loads: singletons that were null at the menu
 	void ListPapyrusNatives(); // kGameDataReady (opt-in)

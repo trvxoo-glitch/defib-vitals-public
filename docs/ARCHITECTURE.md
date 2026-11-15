@@ -23,6 +23,8 @@ How the plugin is put together, so it can be changed safely years from now.
    goes to `Vitals.jsonl`.
 6. **Evidence-based rules.** Doctor rules come from findings confirmed in game, dated, with the build.
 7. **No personal data.** Paths are redacted (`Redact`) before anything is written.
+8. **No network code.** Vitals never sends anything. The opt-in share pack is a file the player chooses to send;
+   everything in it passes the scrubber (`include/Vitals/Scrub.h`), and the list of files is fixed in `Share.cpp`.
 
 ## Start-up order
 
@@ -30,8 +32,8 @@ How the plugin is put together, so it can be changed safely years from now.
 | --- | --- | --- |
 | `F4SEPlugin_Query` (OG) / `F4SEPlugin_Version` (NG/AE) | Loader decides whether to load Vitals | `res/vitals/commonlibf4-plugin.cpp.in`, `main.cpp` |
 | `F4SEPlugin_Load` | `LoadSettings`, `OpenReport` (rotate history), `InitBreadcrumbs`, `start` record, register message listener | `main.cpp`, `Common.cpp`, `Breadcrumbs.cpp` |
-| `kPostPostLoad` (all F4SE plugins loaded, before the game reads plugins) | `ReportEnvironment`, then `RunDoctor` (report + message box) | `Environment.cpp`, `Doctor.cpp` |
-| `kGameDataReady` (data loaded, main menu next) | `CheckAddresses` (adds the address section to the report; skipped with `address_check_unavailable` when the Address Library is not usable), `RunLayoutProbes`; `ListPapyrusNatives` one task tick later, after every plugin's own `kGameDataReady` handler | `Addresses.cpp`, `Natives.cpp`, `Probes.cpp` |
+| `kPostPostLoad` (all F4SE plugins loaded, before the game reads plugins) | `ReportEnvironment`, then `RunDoctor` (report + message box), then `WriteSharePack("start")` on a background thread when opted in | `Environment.cpp`, `Doctor.cpp`, `Share.cpp` |
+| `kGameDataReady` (data loaded, main menu next) | `CheckAddresses` (adds the address section to the report; skipped with `address_check_unavailable` when the Address Library is not usable), `WriteSharePack("main_menu")` when opted in, `RunLayoutProbes`; `ListPapyrusNatives` one task tick later, after every plugin's own `kGameDataReady` handler | `Addresses.cpp`, `Natives.cpp`, `Probes.cpp` |
 | `kPostLoadGame` / `kNewGame` | pointer re-check, probes, `session` record | `Addresses.cpp`, `Probes.cpp` |
 | every message | `MarkPhase` (`phase` record, `status.json`), optional test-rig exit | `Status.cpp` |
 
@@ -47,7 +49,13 @@ and a message box there appears before a load-order crash at the main menu.
 | `src/main.cpp` | Entry points and the F4SE message listener |
 | `src/Common.cpp` | Settings, output folder, `Emit` (jsonl), `Summary`, `Json` builder, `Redact`, `SafeRead`, module lookup by address, history rotation |
 | `src/Environment.cpp` | Game build, F4SE version, every DLL with its F4SE data and whether it is in the process |
-| `src/Doctor.cpp` | Plugin doctor: PE parsing, plain-language reasons (`Explain`), f4se.log lines, knowledge rules, load order and masters, report, message box |
+| `src/Doctor.cpp` | Plugin doctor: PE parsing, plain-language reasons (`Explain`), f4se.log lines, knowledge rules (with per-runtime tags), load order and masters, report, message box (with Copy report) |
+| `src/Share.cpp` | Opt-in share pack: picks the files, builds the scrub context (known folders, user and PC name, Vortex staging), summaries, `Vitals-Share.zip`, the report's share section |
+| `include/Vitals/Scrub.h` | The share-pack scrubber, plain C++20. Tested by `tests/cpp/rules_test.cpp` with `tests/scrub_cases.txt`; `server/scrub.js` is a line-by-line port checked against it on the same cases and on random input |
+| `include/Vitals/Share.h` | Share-pack summaries that need no game: Papyrus log counts, Vortex manifest to DLL sources, breadcrumbs as text, the INI allowlist, size caps |
+| `include/Vitals/Zip.h` | Stored-only zip writer (CRC-32), read back by `server/zip.js` |
+| `server/` | The upload page and private storage for share packs (Cloudflare Worker + R2), with its own README and tests |
+| `tools/share_inbox.py` | Downloads packs (maintainers) and counts not-running DLLs, crash locations and unbound natives across installs |
 | `include/Vitals/Rules.h` | The parts that need no game, plain C++20: F4SE loader rules (`Loader::Check`), plugin-name decoding, INI values, return-stub detection, popup decision and key files, the real load order, UTF-8-safe cuts, user-folder redaction. Tested by `tests/cpp/rules_test.cpp` |
 | `include/Vitals/Formats.h` | Readers for files on disk, plain C++20: PE exports and `F4SEPlugin_Version` data, the Address Library table, TES4 plugin headers. Every bound is checked by subtraction, so a crafted size or offset cannot wrap. Fuzzed and tested by `tests/cpp/rules_test.cpp` (CI also runs it under AddressSanitizer) |
 | `src/Addresses.cpp` | Address check: resolve IDs, read bytes, compare with list/baseline, jump decoding and hook owners (`ResolveOwner`), singleton classes, baseline capture |
