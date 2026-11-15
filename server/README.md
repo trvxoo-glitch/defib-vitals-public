@@ -1,7 +1,7 @@
 # Vitals share-pack server
 
 The upload page and private storage for share packs: one Cloudflare Worker and one private R2 bucket. Vitals itself
-sends opted-in players' `Vitals-Share.zip` here automatically (`src/Share.cpp`); the upload page is for sending one by hand.
+sends opted-in players' `Vitals-Share.zip` here automatically (`src/Share.cpp`); the upload page is for sending one by hand, looking at a pack first, or deleting a pack with its code.
 
 | File | What it is |
 | --- | --- |

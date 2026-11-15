@@ -38,7 +38,7 @@ IDs a port relies on point at the expected code, Papyrus native functions per DL
 
 **Vortex or Mod Organizer 2:** install the archive like any other mod. The installer asks two questions:
 *Player* (recommended) or *Mod author / developer* (adds the Papyrus natives list and the engine layout probes), and
-whether to make a share pack you can send (default: no).
+whether to help improve Vitals by sending a scrubbed log pack (default: no).
 
 **By hand:** open the archive, copy the contents of `00 Core` into your game's `Data` folder, then the contents of
 `10 Settings - Player` (or `11 Settings - Developer`) into `Data` too. You should end up with
@@ -112,7 +112,7 @@ PROBLEMS
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Every report message, setting and output file, for players |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Problems and fixes |
 | [docs/FAQ.md](docs/FAQ.md) | Short answers |
-| [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md) | Exactly what Vitals reads, writes and sends (it sends nothing) |
+| [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md) | Exactly what Vitals reads, writes and sends (it sends nothing unless you opt in to the share pack) |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Adding rules, bug reports, code changes |
 | [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md) | Vitals.jsonl records, address lists, baselines, knowledge rules, breadcrumbs, status.json |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the plugin is built: start-up order, each source file, design rules |

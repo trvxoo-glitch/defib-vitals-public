@@ -2,7 +2,7 @@
 
 **Will Vitals fix my mods?** No. It tells you what is wrong and what to do. It never edits, disables or moves files.
 
-**Is it safe to leave installed?** Yes. It is read only and sends nothing anywhere. See [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md).
+**Is it safe to leave installed?** Yes. It is read only, and it sends nothing unless you opt in to the share pack. See [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md).
 
 **Does it slow the game down?** It adds under a second at start-up (it reads each DLL in `Data\F4SE\Plugins` once) and nothing while you play.
 

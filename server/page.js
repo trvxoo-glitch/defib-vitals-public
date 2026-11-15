@@ -31,7 +31,7 @@ export default `<!doctype html>
 <body>
 <main>
   <h1>Vitals share pack</h1>
-  <p>Send the Vitals-Share.zip that Vitals made for you, so we can see which F4SE plugins fail and why. Thank you.</p>
+  <p>Vitals sends this pack by itself if you chose <b>Yes, help improve Vitals</b> in the installer, so most people never need this page. Use it to send a pack by hand, to look at what a pack holds, or to delete one with its code. Thank you for helping.</p>
   <p>It is in <b>Documents\\My Games\\Fallout4\\F4SE\\Vitals\\Vitals-Share.zip</b>. Vitals already removed your user name, PC name, emails, IP addresses, keys and private folder paths; this server checks every file again. Nothing about you is stored: no IP address, no account, no cookie. Packs are deleted after 90 days, or now with your code. <a href="https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/PRIVACY_AND_SAFETY.md">Privacy details</a>.</p>
 
   <div class="card">
