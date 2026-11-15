@@ -10,14 +10,14 @@ Vitals is meant to be left installed, so this page says plainly what it reads, w
 
 ## What it reads
 - The DLL files in `Data\F4SE\Plugins` (headers and export names, to explain why F4SE skipped them), and their build dates.
-- `Documents\My Games\Fallout4\F4SE\f4se.log` (F4SE's own log), `Fallout4Custom.ini` and `Fallout4.ini` (the [Archive] settings only), `%LOCALAPPDATA%\Fallout4\plugins.txt`, `Fallout4.ccc`, and the headers of the plugins in the load order (masters and flags).
+- `Documents\My Games\Fallout4\F4SE\f4se.log` (F4SE's own log), `Fallout4Custom.ini`, `Fallout4Prefs.ini` and `Fallout4.ini` (the [Archive] settings only; the share pack reads 22 named keys, see below), `%LOCALAPPDATA%\Fallout4\plugins.txt`, `Fallout4.ccc`, and the headers of the plugins in the load order (masters and flags).
 - A few file names and dates in the game folder (for the knowledge rules).
 - Only when an F4SE plugin is not running: your mod manager's own records, to explain it. For Vortex,
   `Data\vortex.deployment.json`, the copies of that DLL in its staging folder, and the newest state backup in
   `%APPDATA%\Vortex\temp\state_backups_full` (only each mod's folder name, version and newest version are used). For
   MO2, the `ModOrganizer.ini` of the instance that manages this game folder (other games' instances are skipped),
   its selected profile's `modlist.txt` (which mod wins a file conflict), the copies of that DLL in its mods folder,
-  and those mods' `meta.ini`. Nothing from these goes into the share pack except what the report already says.
+  and those mods' `meta.ini`. Nothing from these goes into the share pack except what the report already says and, for Vortex, the DLL-to-mod list in `dll-sources.txt`.
 - Engine addresses listed in `Vitals\addresses\*.txt`, to compare their first bytes.
 
 ## What it writes

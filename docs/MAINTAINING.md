@@ -57,10 +57,12 @@ rule parses.
 | INI warning: appears with loose files and no INI settings, absent on a correct setup | required | | |
 | Address check: no unexpected `differs` on a clean F4SE + Vitals launch | required | required | |
 | Save load: pointer re-check, no crash | required | required | |
+| Share pack (Yes in the installer): `Vitals-Share.zip` is written before the box, again at the main menu, nothing personal in it (open it and search for your user name, PC name, save names); No thanks writes no pack, and removes an old one | required | | |
+| Mod manager evidence: Vortex (`Installed by`, newer-on-Nexus line) and MO2 (instance chosen, winner from `modlist.txt`, Overwrite advice) | required (Vortex) | required (MO2) | |
 | Unit tests (`python -m unittest discover -s tests`, includes the C++ rules test) | CI | | |
 | FOMOD installs in Vortex and MO2, both options | required | | |
 
-Record the results in `CHANGELOG.md` ("Tested in game: ...").
+Record the results in `CHANGELOG.md` ("Tested in game: ..."), and what was **not** tested.
 
 ## Releasing
 
@@ -68,7 +70,8 @@ Record the results in `CHANGELOG.md` ("Tested in game: ...").
 2. `CHANGELOG.md`: a `## <version>` section; the release notes are cut from it.
 3. Merge to `main`, then run the `build` workflow manually with `release_version` (or push tag `v<version>`
    from a PC). CI builds, checks the FOMOD, and publishes `Vitals-<version>-AI-Assisted.zip`.
-4. Nexus: upload that zip as the main file, keep the "AI Assisted" tag and the disclosure on the page.
+4. Nexus: upload that zip as the main file, keep the "AI Assisted" tag and the disclosure on the page, and paste the
+   changelog section into the file's changelog. The Nexus description is kept outside the repository.
 
 ## Rules that keep the project healthy
 

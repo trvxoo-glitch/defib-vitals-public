@@ -1,13 +1,15 @@
 # Vitals roadmap
 
-Updated 2026-11-13 with 0.3.0. Items move to CHANGELOG.md when done. Ask the project owner before starting a release.
+Updated 2026-11-15 with 0.4.0. Items move to CHANGELOG.md when done. Ask the project owner before starting a release.
 
-## Done in 0.3.0
-Preflight report without launching (old item 1), last 5 sessions (3), load order from inside the game (4), hook
-owners and game stubs (5), plain-language report (6).
+## Done
+* 0.3.0: preflight report without launching, last 5 sessions, load order from inside the game, hook owners and game
+  stubs, plain-language report.
+* 0.4.0: the opt-in share pack and its scrubber, other-copies and mod-manager update evidence, Copy report, per-version
+  knowledge rules.
 
-## Next (0.3.x / 0.4)
-1. **In-game test of 0.3.0** on 1.11.240 and 1.10.163 (test matrix in MAINTAINING.md), then release on GitHub.
+## Next (0.4.x / 0.5)
+1. **0.4.0 on more setups**: in-game test on 1.10.163 and 1.10.984 and under Mod Organizer 2 (test matrix in MAINTAINING.md).
 2. **Crash triage in the analyzer.** Combine the phase reached (crash before GameDataReady = plugin or master
    problem; in the main menu = interface file), the crash log's top frames (Buffout 4 / Addictol format), and the
    doctor's findings into one verdict.
@@ -24,7 +26,7 @@ owners and game stubs (5), plain-language report (6).
 8. Test on 1.10.984 (NG) by the owner (a player confirmed it works), and VR if available.
 9a. Share packs (0.4.0 writes them): collect them in the Discord server (`docs/DISCORD_INBOX.md`), then turn
    `tools/share_inbox.py summary` candidates into confirmed rules.
-9. Nexus release. Owner's decision, after the in-game test and a GitHub release.
+9. Nexus: each release's upload is the owner's action.
 10. Translations of the report messages (all player-facing text is in `Doctor.cpp` and the rules).
 
 ## Not planned

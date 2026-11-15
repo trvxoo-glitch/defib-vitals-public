@@ -8,8 +8,11 @@ For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHI
 2. When all F4SE plugins have loaded (before the game reads any .esp), the **plugin doctor** runs:
    * every DLL in `Data\F4SE\Plugins` is checked: is it running? If not, why not?
    * the load order is read and every plugin's masters are checked;
-   * the rules in `Data\F4SE\Plugins\Vitals\knowledge\*.txt` are applied.
-3. If it found something new that needs attention, a message box lists it in two parts: **May crash the game**
+   * the rules in `Data\F4SE\Plugins\Vitals\knowledge\*.txt` are applied;
+   * for plugins that are not running, your mod manager's records are read (Vortex or MO2, see below). This has a
+     2-second limit; the report's "Mod manager:" line says what was looked at and how long it took.
+   Every step runs on its own: if one cannot finish, the report says which and the rest still runs.
+3. If it found something that needs attention, a message box lists it in two parts: **May crash the game**
    (missing or inactive masters, a missing Address Library, known crash causes) and **Mods not running** (F4SE plugins
    that are installed but did not load). Press **Continue** and the game carries on. Nothing is changed or disabled for you.
 4. When the game data is ready (just before the main menu) the **address check** runs (about a second) and adds a section to the report. It runs again after a save loads or a new game starts.
@@ -28,6 +31,7 @@ For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHI
 | `status.json` | How far the game got (for scripts) |
 | `hashes.txt` | Remembered SHA-256 of each F4SE DLL, so unchanged DLLs are not read again (safe to delete) |
 | `Vitals-Share.zip`, `share-id.txt` | Only if you opted in: your logs with personal details scrubbed, for you to send if you want to help. See [Share pack](#share-pack) |
+| `Vitals-Share-new.zip` | Only if `Vitals-Share.zip` was open in another program when Vitals tried to replace it: this launch's pack |
 
 Your Windows user name is replaced with `<user>` in every file, so the files are safe to share.
 
@@ -43,9 +47,11 @@ Your Windows user name is replaced with `<user>` in every file, so the files are
 ## Share pack
 
 Optional, off unless you picked **Yes, help improve Vitals** in the installer (or set `bSharePack=1` in
-`Vitals.ini`). After each session Vitals writes `Vitals-Share.zip` next to the report: the report, F4SE's logs, your
-load order, a few game settings, a short PC summary and recent crash logs, with your user name, PC name, emails, IP
-addresses, keys and private folder paths removed. Open it to see exactly what is inside; `scrub-report.txt` says how
+`Vitals.ini`). Each launch Vitals writes `Vitals-Share.zip` next to the report, a few seconds after the start-up
+report (while the start-up box is open, so **Stop game** does not lose it) and again at the main menu: the report,
+F4SE's logs, your load order, a few game settings, a short PC summary, a count-only summary of the Papyrus logs and
+recent crash logs, with your user name, PC name, save and character names, emails, IP addresses, keys and private
+folder paths removed. Open it to see exactly what is inside; `scrub-report.txt` says how
 many items were removed. Vitals never sends it. To help, join https://discord.gg/XghtBZUFNW, press **Send my pack** and drag it into your private channel, or attach it to a
 [GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues). Full details and how to turn it off:
 [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
@@ -76,12 +82,18 @@ When `f4se.log` has a line about the DLL, it is quoted.
 Below the reason, Vitals adds what it can find on your own PC, with no internet and no mod page:
 
 - **File version**: the version number inside the DLL, to compare with the mod page.
-- **Installed by**: which Vortex or MO2 mod the game's copy came from. If your mod manager's update check has already
-  seen a newer version on Nexus, that is shown too (run "Check for updates" in Vortex or MO2 first for the freshest
-  answer; Vitals does not go online itself).
+- **Installed by**: which Vortex or MO2 mod the game's copy came from (under MO2, the mod that wins in your selected
+  profile). If your mod manager's update check has already seen a newer version on Nexus, that is shown too (run
+  "Check for updates" in Vortex or MO2 first for the freshest answer; Vitals does not go online itself).
 - **Other installed copies**: other mods in your Vortex staging folder or MO2 mods folder that carry the same DLL. If
   one of them would run on your game, the advice tells you to let that mod win the file conflict. This is the usual
-  cause when an up-to-date mod shows up here: an older mod (or an old bundled copy) overwrites its DLL.
+  cause when an up-to-date mod shows up here: an older mod (or an old bundled copy) overwrites its DLL. On Old-Gen a
+  copy that "decides for itself at start-up" may run, so it is offered as something to try. Under MO2 only the
+  instance that manages your Fallout 4 folder is used. If the report says the game is not loading the winning mod's
+  copy, the file comes from MO2's **Overwrite** folder (bottom of the left pane) or was put in `Data\F4SE\Plugins` by
+  hand: remove that old copy, moving mods in the left pane will not help.
+- **Time limit**: this look-up stops after 2 seconds on a huge mod list and the report says so; a Vortex state backup
+  over 64 MB is not read.
 - **Build date**: checked against the release date of the compiler that built the DLL, so a wrong date inside the DLL
   or a file date reset by an archive does not make a new mod look old.
 
@@ -147,6 +159,7 @@ The most useful:
 * `iPopupMode=0` turns the message box off (the report is still written). The box's **Don't show** button stops it listing those plugins again; problems that may crash the game still show.
 * `iPopupMode=1` (default) shows the box on every launch while there is something to list. **Continue** and **Stop game** change nothing; only **Don't show** silences plugins. `iPopupMode=2` behaves the same.
 * `iKeepSessions=10` keeps more history.
+* `bSharePack=0` always off, `1` on; commented out (default) follows the installer's choice (`share=1` in `Data\F4SE\Plugins\Vitals\share-optin.txt`).
 
 ## Comparing launches
 

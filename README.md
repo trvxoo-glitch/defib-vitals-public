@@ -12,15 +12,19 @@ One small F4SE plugin. Install it, start the game once, and read
 * **Will your loose-file mods even load?** Warns when loose meshes, textures or interface files are installed but `Fallout4Custom.ini` does not turn on loose files.
 * **Are known-bad files installed?** Old main-menu and font files that break the Anniversary menus, ENB + Community
   Shaders fighting over the same passes, and other rules found by testing real mod lists (you can add your own).
+* **Is an older copy of a mod's DLL overwriting the new one?** For each plugin that is not running, the report shows the
+  DLL's own version, which Vortex or MO2 mod's copy the game is using, other installed mods that carry a working copy
+  (the usual cause when an up-to-date mod "does not load"), and whether your mod manager's own update check found a
+  newer version on Nexus. All read from files on your PC; Vitals never goes online.
 * **What changed since my last launch?** Every session is kept; one command shows plugins added or removed and
   engine functions newly hooked, and by which DLL.
 
 A message box appears at start-up **only** when something needs attention: a problem that may crash the game,
 or an F4SE plugin that is installed but not running. The box shows on every launch until you fix the problem or press **Don't show**, and **Copy report** puts the whole report on the clipboard for a comment or bug report. Everything else stays in the report.
 
-**Optional: help find broken mods.** The installer's second page offers a share pack (off unless you pick it): a zip
-of your logs with your user name, PC name, emails, IP addresses, keys and private folder paths scrubbed out, for you
-to send if you want to (drag it into a private channel in the Vitals Discord server, or attach it to a GitHub issue). Vitals never sends anything. See [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
+**Optional: help find broken mods.** The installer's second page offers a share pack (off unless you pick **Yes**): a zip
+of your logs with your user name, PC name, save and character names, emails, IP addresses, keys and private folder paths
+scrubbed out, for you to send if you want to (drag it into a private channel in the Vitals Discord server, or attach it to a GitHub issue). Vitals never sends anything. See [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 
 Vitals is part of **Defib**, a project to bring abandoned F4SE mods back to life on every game version. The same
 plugin records what a mod porter needs: which engine functions are hooked and by whom, whether the Address Library
@@ -30,7 +34,7 @@ IDs a port relies on point at the expected code, Papyrus native functions per DL
 | --- | --- |
 | Game versions | 1.10.163 (Old-Gen, tested), 1.10.980/984 (Next-Gen, a player confirmed 1.10.984), 1.11.137 to 1.11.240 (Anniversary, tested on 1.11.240). One DLL for all. |
 | Requires | [F4SE](https://www.nexusmods.com/fallout4/mods/42147) for your game version, and [Address Library for F4SE Plugins](https://www.nexusmods.com/fallout4/mods/47327) (without it Vitals still starts and says so; only the address check is skipped) |
-| Safe | Reads only. Never writes to game memory, installs no hooks, adds no plugin (.esp) and no save data. Remove it any time. |
+| Safe | Reads only. Never writes to game memory, installs no hooks, adds no plugin (.esp) and no save data, and has no network code. Its files go only in `Documents\My Games\Fallout4\F4SE\Vitals`. Remove it any time. |
 | Works with | Buffout 4, Buffout 4 NG, Addictol and their crash loggers, CLASSIC, LOOT, Vortex, Mod Organizer 2 |
 | AI Assisted | Written with Claude (Anthropic), tested in game by a person. See `AI_DISCLOSURE.md`. |
 
@@ -51,13 +55,20 @@ whether to make a share pack you can send (default: no).
 After one launch (the main menu is enough), open `Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt`.
 
 ```
-Vitals 0.3.0 report | game 1.11.240.0 (AE) | F4SE 0.7.9.0
-2 problem(s), 1 warning(s), 3 note(s). Problems are things likely to crash the game or break mods.
+Vitals 0.4.0 report | game 1.11.240.0 (AE) | F4SE 0.7.9.0
+1 problem(s), 1 warning(s), 0 note(s). Problems may crash the game; warnings are mods that will not work as installed.
+
+  Mod manager: Vortex; looked through 1041 installed mods for other copies of the 1 not-running DLL(s) in 205 ms
+  F4SE plugins: 72 DLLs in Data\F4SE\Plugins, 71 running, 1 not running
 
 PROBLEMS
   - eXoSorter - Patch.esp needs the master SomeMod.esm, which is installed but NOT active.
     What to do: Activate SomeMod.esm, or deactivate eXoSorter - Patch.esp. ...
-  - OldThing.dll is in Data\F4SE\Plugins but is not running: it is an older plugin without F4SEPlugin_Version data, so F4SE skips it ...
+
+WARNINGS
+  - OldThing.dll is in Data\F4SE\Plugins but is not running: it is an older-style plugin (Query only) without
+    F4SEPlugin_Version data, which F4SE 0.7.x needs, so F4SE skips it. File version 1.0.1.0. Installed by the Vortex
+    mod "Old Thing-1234-1-0-1".
     What to do: Look for a version of this mod for your game version, or a replacement. ...
 ```
 
@@ -80,6 +91,7 @@ PROBLEMS
 | `bDoctor` | 1 | The plugin doctor and `Vitals-Report.txt` |
 | `iPopupMode` | 1 | 0 never, 1 every launch while there is something to list (2 does the same) |
 | `iKeepSessions` | 5 | Earlier sessions kept in `Vitals\history` |
+| `bSharePack` | follows the installer | Share pack: -1/commented out follows the installer choice, 0 always off, 1 on |
 | `bEnvironmentReport` | 1 | Game build, F4SE, every DLL and whether it loaded |
 | `bAddressCheck` | 1 | Check the engine addresses in `Vitals\addresses\*.txt`; find hooked functions |
 | `bBreadcrumbs` | 1 | Crash-safe "which port hook ran last" ring |
