@@ -30,7 +30,7 @@ Vitals never sends it.
 | File | Taken from | Notes |
 | --- | --- | --- |
 | `manifest.json` | made by Vitals | Vitals, game and F4SE versions, the date (day only), a random install id, each file's size and checksum |
-| `Vitals-Report.txt`, `Vitals-summary.txt`, `Vitals.jsonl`, `Vitals.prev.jsonl`, `history/` (newest 3), `status.json`, `popup_disabled.txt` | the Vitals folder | |
+| `Vitals-Report.txt`, `Vitals-summary.txt`, `Vitals.jsonl`, `Vitals.prev.jsonl` (the session before; older history is not included), `status.json`, `popup_disabled.txt` | the Vitals folder | |
 | `breadcrumbs.txt` | `breadcrumbs.bin` and `.prev.bin` | port and step names as text; the binary file is not included |
 | `f4se.log`, `f4se_loader.log` | `My Games\Fallout4\F4SE` | |
 | `crash/crash-*.log` | Buffout 4-style crash logs there: up to 3, last 14 days | text read from game memory is removed (below) |

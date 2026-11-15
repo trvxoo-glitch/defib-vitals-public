@@ -156,7 +156,7 @@ A zip with **stored** (uncompressed) entries and UTF-8 names (`include/Vitals/Zi
 `manifest.json`, `Vitals-Report.txt`, `Vitals-summary.txt`, `status.json`, `f4se.log`, `f4se_loader.log`,
 `crash/crash-*.log`, `plugins.txt`, `Fallout4.ccc`, `ini-settings.txt`, `system.txt`, `dll-sources.txt` (Vortex),
 `papyrus-summary.txt`, `breadcrumbs.txt`, `popup_disabled.txt`, `Vitals.jsonl`, `Vitals.prev.jsonl`,
-`history/Vitals-*.jsonl` (newest 3), `scrub-report.txt`. A missing source file is left out. Every entry except
+`scrub-report.txt`. A missing source file is left out. Every entry except
 `manifest.json` passed through `include/Vitals/Scrub.h` (crash logs through `Scrub::CrashLog`). Each source keeps its
 newest 2 MB (a first line `[Vitals: N older bytes left out ...]` says so); files that would take the pack past 8 MB are
 left out and named in the manifest. The upload server accepts exactly these names (`server/worker.js`, `NAMES`).

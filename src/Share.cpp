@@ -205,19 +205,6 @@ namespace Vitals
 			return out;
 		}
 
-		std::vector<std::filesystem::path> HistoryFiles()
-		{
-			std::vector<std::filesystem::path> files;
-			std::error_code                    ec;
-			for (const auto& e : std::filesystem::directory_iterator(OutputDir() / L"history", ec))
-				if (e.path().extension() == L".jsonl")
-					files.push_back(e.path());
-			std::ranges::sort(files, std::greater<>{});  // names sort by date: newest first
-			if (files.size() > 3)
-				files.resize(3);
-			return files;
-		}
-
 		void Write(std::string_view a_when)
 		{
 			std::scoped_lock l(g_shareLock);
@@ -264,7 +251,7 @@ namespace Vitals
 				add(std::move(a_name), ReadTail(a_path, Share::kMaxFileBytes), a_crash);
 			};
 
-			// most useful first, so the size cap drops old history before the report
+			// most useful first, so the size cap drops the oldest data before the report
 			addFile("Vitals-Report.txt", out / L"Vitals-Report.txt");
 			addFile("Vitals-summary.txt", out / L"Vitals-summary.txt");
 			addFile("status.json", out / L"status.json");
@@ -292,8 +279,6 @@ namespace Vitals
 			addFile("popup_disabled.txt", out / L"popup_disabled.txt");
 			addFile("Vitals.jsonl", out / L"Vitals.jsonl");
 			addFile("Vitals.prev.jsonl", out / L"Vitals.prev.jsonl");
-			for (const auto& h : HistoryFiles())
-				addFile("history/" + Narrow(h.filename().wstring()), h);
 
 			files.emplace_back("scrub-report.txt", Scrub::Report(counts));
 
