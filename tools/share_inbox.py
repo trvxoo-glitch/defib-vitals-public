@@ -66,12 +66,21 @@ def pull_discord(out, token=None, guild=None, category=None):
     os.makedirs(out, exist_ok=True)
     seen = {f.split("-", 1)[0] for f in os.listdir(out)}
     new = 0
-    for ch in _discord(f"/guilds/{guild}/channels", token):
-        if ch.get("type") != 0 or (category and ch.get("parent_id") != category):
-            continue
+    channels = _discord(f"/guilds/{guild}/channels", token)
+    names = {c["id"]: c.get("name", "?") for c in channels}
+    text = [c for c in channels if c.get("type") == 0]
+    chosen = [c for c in text if not category or c.get("parent_id") == category]
+    print(f"Server has {len(text)} text channel(s); {len(chosen)} are in the category to read.")
+    if category and not chosen:
+        print("No text channel is in that category id. Where the text channels are (category name -> channels):")
+        for c in text[:40]:
+            print(f"  {names.get(c.get('parent_id'), '(no category)')} [{c.get('parent_id')}] -> {c.get('name')}")
+    for ch in chosen:
         before = None
+        seen_msgs = 0
         while True:
             msgs = _discord(f"/channels/{ch['id']}/messages?limit=100" + (f"&before={before}" if before else ""), token)
+            seen_msgs += len(msgs)
             for m in msgs:
                 for att in m.get("attachments", []):
                     name = re.sub(r"[^A-Za-z0-9._-]", "_", att.get("filename", "pack.zip"))
@@ -87,6 +96,7 @@ def pull_discord(out, token=None, guild=None, category=None):
             if len(msgs) < 100:
                 break
             before = msgs[-1]["id"]
+        print(f"  {ch.get('name')}: {seen_msgs} message(s) read")
     print(f"{new} new file(s) in {out}. Packs are checked when you run summary; anything that is not a Vitals pack is ignored.")
     return new
 
