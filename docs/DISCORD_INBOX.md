@@ -19,8 +19,10 @@ chooses whether to attach it in the Vitals Discord server. This page is for the 
 **read-only bot** that you create and keep; its token is never shared with anyone, never put in a chat, and never
 committed.
 
-1. Discord Developer Portal, New Application, **Bot**, Reset Token (copy it once). Leave all "Privileged Gateway
-   Intents" off: the script only needs the REST API.
+1. Discord Developer Portal, New Application, **Bot**, Reset Token (copy it once). Under "Privileged Gateway
+   Intents" turn on **Message Content Intent** and save: without it Discord hides every attachment from the bot (it
+   reads the messages but sees no files). The other two stay off. The script only uses the REST API and never
+   connects as an online bot.
 2. Invite the bot to the server with only these permissions: **View Channels** and **Read Message History**. Add it to
    the ticket category so it can see the private channels.
 3. Developer Mode on in Discord (Settings, Advanced), then right-click the server for its id and the ticket category for
