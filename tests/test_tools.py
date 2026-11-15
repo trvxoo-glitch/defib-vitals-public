@@ -457,6 +457,33 @@ class ShareInboxTests(unittest.TestCase):
             self.assertIn("Mod-NewThing.dll-1", text)
 
 
+class DiscordPullTests(unittest.TestCase):
+    def test_pull_discord_downloads_zips_once(self):
+        import share_inbox
+        calls = []
+
+        def fake(path, token, binary=False):
+            calls.append(path)
+            self.assertEqual(token, "tok")
+            if path == "/guilds/G/channels":
+                return [{"id": "1", "type": 0, "parent_id": "CAT"}, {"id": "2", "type": 0, "parent_id": "OTHER"}, {"id": "3", "type": 4}]
+            if path.startswith("/channels/1/messages"):
+                return [{"id": "10", "attachments": [{"id": "5", "filename": "Vitals-Share.zip", "size": 100, "url": "http://x/a.zip"},
+                                                     {"id": "6", "filename": "notes.txt", "size": 5, "url": "http://x/n.txt"},
+                                                     {"id": "7", "filename": "../../evil.zip", "size": 5, "url": "http://x/e.zip"}]}]
+            return b"PK"
+        orig = share_inbox._discord
+        share_inbox._discord = fake
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual(share_inbox.pull_discord(tmp, "tok", "G", "CAT"), 2)
+                self.assertEqual(sorted(os.listdir(tmp)), ["10_5-Vitals-Share.zip", "10_7-.._.._evil.zip"])
+                self.assertEqual(share_inbox.pull_discord(tmp, "tok", "G", "CAT"), 0)  # nothing new the second time
+            self.assertFalse(any("/channels/2/" in c for c in calls))  # only the chosen category is read
+        finally:
+            share_inbox._discord = orig
+
+
 class PreflightEdgeTests(unittest.TestCase):
     def test_rule_runtime_tags(self):
         import defib_preflight

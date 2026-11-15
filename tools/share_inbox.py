@@ -3,6 +3,8 @@
 
   python tools/share_inbox.py pull --out inbox          download new packs from the upload server
         (needs VITALS_SHARE_URL and VITALS_READ_KEY in the environment; see server/README.md)
+  python tools/share_inbox.py pull-discord --out inbox  download packs players attached in the Discord server
+        (needs VITALS_DISCORD_TOKEN, VITALS_DISCORD_GUILD and optionally VITALS_DISCORD_CATEGORY; see docs/DISCORD_INBOX.md)
   python tools/share_inbox.py summary inbox [--out summary.md] [--min-installs 5]
 
 `summary` reads every *.zip in the folder (packs from the server, or ones players attached to a GitHub issue) and
@@ -61,6 +63,65 @@ def pull(out, base=None, key=None):
         if not cursor:
             break
     print(f"{new} new pack(s) in {out}")
+    return new
+
+
+# ---------------------------------------------------------------- pull from Discord
+DISCORD = "https://discord.com/api/v10"
+
+
+def _discord(path, token, binary=False):
+    """GET from the Discord API as a read-only bot. Waits out rate limits (429)."""
+    import time
+    import urllib.error
+    for _ in range(6):
+        req = urllib.request.Request(path if path.startswith("http") else DISCORD + path,
+                                     headers={"Authorization": f"Bot {token}", "User-Agent": "DiscordBot (vitals-share-inbox, 1)"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = r.read()
+                return data if binary else json.loads(data)
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                time.sleep(float(json.loads(e.read() or b"{}").get("retry_after", 2)) + 0.5)
+                continue
+            raise SystemExit(f"Discord said {e.code} for {path.split('?')[0]}. Check the bot's permissions and the ids.")
+    raise SystemExit("Discord kept rate limiting; try again in a minute.")
+
+
+def pull_discord(out, token=None, guild=None, category=None):
+    """Download every .zip attachment from the text channels of one server (or one category of it, such as the
+    private ticket channels). Files are named <message id>-<file name>, so a second run only fetches new ones."""
+    token = token or os.environ.get("VITALS_DISCORD_TOKEN", "")
+    guild = guild or os.environ.get("VITALS_DISCORD_GUILD", "")
+    category = category or os.environ.get("VITALS_DISCORD_CATEGORY", "")
+    if not token or not guild:
+        raise SystemExit("Set VITALS_DISCORD_TOKEN and VITALS_DISCORD_GUILD (see docs/DISCORD_INBOX.md).")
+    os.makedirs(out, exist_ok=True)
+    seen = {f.split("-", 1)[0] for f in os.listdir(out)}
+    new = 0
+    for ch in _discord(f"/guilds/{guild}/channels", token):
+        if ch.get("type") != 0 or (category and ch.get("parent_id") != category):
+            continue
+        before = None
+        while True:
+            msgs = _discord(f"/channels/{ch['id']}/messages?limit=100" + (f"&before={before}" if before else ""), token)
+            for m in msgs:
+                for att in m.get("attachments", []):
+                    name = re.sub(r"[^A-Za-z0-9._-]", "_", att.get("filename", "pack.zip"))
+                    if not name.lower().endswith(".zip") or att.get("size", 0) > 32 << 20:
+                        continue
+                    key = f"{m['id']}_{att['id']}"
+                    if key in seen:
+                        continue
+                    with open(os.path.join(out, f"{key}-{name}"), "wb") as f:
+                        f.write(_discord(att["url"], token, binary=True))
+                    seen.add(key)
+                    new += 1
+            if len(msgs) < 100:
+                break
+            before = msgs[-1]["id"]
+    print(f"{new} new file(s) in {out}. Packs are checked when you run summary; anything that is not a Vitals pack is ignored.")
     return new
 
 
@@ -213,6 +274,8 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pull")
     p.add_argument("--out", default="inbox")
+    d = sub.add_parser("pull-discord")
+    d.add_argument("--out", default="inbox")
     s = sub.add_parser("summary")
     s.add_argument("folder")
     s.add_argument("--out")
@@ -220,6 +283,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.cmd == "pull":
         pull(a.out)
+        return 0
+    if a.cmd == "pull-discord":
+        pull_discord(a.out)
         return 0
     text, _ = summarize(a.folder, a.min_installs)
     if a.out:
