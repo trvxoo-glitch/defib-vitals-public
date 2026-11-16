@@ -1,7 +1,18 @@
 # Vitals changelog
 
 All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed. Dates are
-2026. Newest first: 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
+2026. Newest first: 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
+
+## 0.4.1 (2026-11-16: ALL CLEAR line, smaller download)
+Not yet tested in game.
+* **New:** when Vitals finds no problems and no warnings, `Vitals-Report.txt` now starts with "ALL CLEAR: Vitals ran and
+  found no problems or warnings". Players with a healthy setup saw no box and could not tell whether Vitals had run.
+* **Changed:** the installer's share-pack page explains what the pack holds and why, then gives the three steps to send it
+  (join the Discord and press Upload, find `Vitals-Share.zip`, drag it in), and what to do if the file is missing.
+* **Changed:** the Nexus download is smaller. The main file keeps the README, user guide, privacy page, AI disclosure,
+  LICENSE and EXCEPTIONS. The other guides (troubleshooting, FAQ, file formats, architecture, building, maintaining,
+  contributing, history, roadmap) and this changelog are in the optional file **Vitals Extra Docs** and on GitHub; the
+  README and user guide link to them there. The plugin itself is unchanged.
 
 ## 0.4.0 (2026-11-15: share pack, better evidence, Copy report)
 Tested in game 2026-11-15: 1.11.240 with A StoryWealth through Vortex (709 active plugins, 71 DLLs in `Data\F4SE\Plugins`,

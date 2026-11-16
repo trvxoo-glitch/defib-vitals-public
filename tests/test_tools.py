@@ -265,6 +265,13 @@ class PackageTests(unittest.TestCase):
             player = open(os.path.join(out, "10 Settings - Player", "F4SE", "Plugins", "Vitals.ini")).read()
             self.assertIn("bLayoutProbes=0", player)
             self.assertTrue(os.path.isdir(os.path.join(out, "00 Core", "F4SE", "Plugins", "Vitals", "knowledge")))
+            # the small main set stays in the main package (GPL needs LICENSE with the DLL); the rest is the optional file
+            for kept in ("README.md", "LICENSE", "EXCEPTIONS", "AI_DISCLOSURE.md", os.path.join("docs", "USER_GUIDE.md"),
+                         os.path.join("docs", "PRIVACY_AND_SAFETY.md")):
+                self.assertTrue(os.path.isfile(os.path.join(out, "Docs", kept)), kept)
+            for moved in ("CHANGELOG.md", os.path.join("docs", "FAQ.md"), os.path.join("docs", "ARCHITECTURE.md")):
+                self.assertFalse(os.path.exists(os.path.join(out, "Docs", moved)), moved)
+                self.assertTrue(os.path.isfile(os.path.join(out + "-extra", moved)), moved)
             os.remove(os.path.join(out, "00 Core", "F4SE", "Plugins", "Vitals.dll"))
             self.assertEqual(make_package.check(out), 1)
 

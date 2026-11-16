@@ -1,6 +1,6 @@
 # Vitals user guide
 
-For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+For players. Mod authors also want [FILE_FORMATS.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/FILE_FORMATS.md) and [ARCHITECTURE.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/ARCHITECTURE.md).
 
 ## What happens when you start the game
 
@@ -22,7 +22,7 @@ For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHI
 
 | File | What it is |
 | --- | --- |
-| `Vitals-Report.txt` | **Start here.** Plain-language problems, warnings, notes, and what to do |
+| `Vitals-Report.txt` | **Start here.** Plain-language problems, warnings, notes, and what to do. Written on every launch; when nothing is wrong it says "ALL CLEAR" near the top (no start-up box is shown then) |
 | `Vitals-summary.txt` | Short technical summary (versions, counts, address check) |
 | `Vitals.jsonl` | Every detail, one JSON object per line. For tools and for sharing when asking for help |
 | `Vitals.prev.jsonl` | The previous session |
@@ -52,7 +52,7 @@ report (while the start-up box is open, so **Stop game** does not lose it) and a
 F4SE's logs, your load order, a few game settings, a short PC summary, a count-only summary of the Papyrus logs and
 recent crash logs, with your user name, PC name, save and character names, emails, IP addresses, keys and private
 folder paths removed. Open it to see exactly what is inside; `scrub-report.txt` says how
-many items were removed. Vitals never sends it. To help, join https://discord.gg/XghtBZUFNW, press **Send my pack** and drag it into your private channel, or attach it to a
+many items were removed. Vitals never sends it. To help, join https://discord.gg/XghtBZUFNW, press **Upload** and drag it into your private channel, or attach it to a
 [GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues). Full details and how to turn it off:
 [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 

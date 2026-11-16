@@ -409,7 +409,7 @@ namespace Vitals
 		return "\nHOW TO HELP (you chose to help improve Vitals)\n"
 		       "  Vitals writes a log pack with your personal details removed, Vitals-Share.zip, a few seconds after this report\n"
 		       "  (while the start-up box is open) and again when the main menu is up. Vitals never sends it for you. To share it:\n"
-		       "    1. Join https://discord.gg/XghtBZUFNW and press the Send my pack button.\n"
+		       "    1. Join https://discord.gg/XghtBZUFNW and press the Upload button.\n"
 		       "    2. Drag Vitals-Share.zip (it is in this same folder) into the private channel that opens.\n"
 		       "  Only the Vitals maintainer can see that channel. Open the zip first if you want to see what is in it.\n"
 		       "  No Discord? Attach the zip to an issue at https://github.com/trvxoo-glitch/defib-vitals-public/issues instead.\n"

@@ -69,8 +69,10 @@ Record the results in `CHANGELOG.md` ("Tested in game: ..."), and what was **not
 1. Version in `xmake.lua` (`plugin_version`). `fomod/info.xml` is set from it at packaging time.
 2. `CHANGELOG.md`: a `## <version>` section; the release notes are cut from it.
 3. Merge to `main`, then run the `build` workflow manually with `release_version` (or push tag `v<version>`
-   from a PC). CI builds, checks the FOMOD, and publishes `Vitals-<version>-AI-Assisted.zip`.
-4. Nexus: upload that zip as the main file, keep the "AI Assisted" tag and the disclosure on the page, and paste the
+   from a PC). CI builds, checks the FOMOD, and publishes `Vitals-<version>-AI-Assisted.zip` (the main file) and
+   `Vitals-<version>-Extra-Docs.zip` (the optional file: the guides and changelog that are not in the main zip).
+4. Nexus: upload the first zip as the main file and the second as an optional file named "Vitals Extra Docs"
+   (category Miscellaneous or Documentation), keep the "AI Assisted" tag and the disclosure on the page, and paste the
    changelog section into the file's changelog. The Nexus description is kept outside the repository.
 
 ## Rules that keep the project healthy

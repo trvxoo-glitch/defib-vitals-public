@@ -53,6 +53,7 @@ jobs:
           name: Vitals-${{ github.sha }}
           path: |
             package/
+            package-extra/
             symbols/
 
   release:
@@ -76,6 +77,7 @@ jobs:
         run: |
           ver="${TAG#v}"
           (cd dl/package && zip -qr "../../Vitals-${ver}-AI-Assisted.zip" .)
+          (cd dl/package-extra && zip -qr "../../Vitals-${ver}-Extra-Docs.zip" .)
           (cd dl/symbols && zip -qr "../../Vitals-${ver}-symbols.zip" .) || true
           awk -v v="## ${ver}" '$0 ~ "^## " { if (p) exit; if (index($0, v) == 1) p = 1 } p' CHANGELOG.md > notes.md
           printf '\n---\n**AI Assisted.** Written with Claude (Anthropic) and tested in game by a person on the builds listed. See AI_DISCLOSURE.md.\n' >> notes.md
