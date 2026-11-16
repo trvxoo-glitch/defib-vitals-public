@@ -886,6 +886,19 @@ namespace Vitals
 		// ---------------- output ----------------
 		std::string ReportPathText() { return Redact(Narrow((OutputDir() / L"Vitals-Report.txt").wstring())); }
 
+		// A not-running DLL's finding is one long sentence: why F4SE skipped it, then when it was built, its file version and
+		// the mod manager's record. The details go on their own line (indented like "What to do:") so the reason reads first.
+		std::string BreakBeforeDetails(std::string a_message)
+		{
+			static constexpr std::string_view markers[] = { " Built (date inside the DLL)", " Its file is dated", " It was made with a linker", " File version " };
+			std::size_t at = std::string::npos;
+			for (const auto m : markers)
+				at = std::min(at, a_message.find(m));
+			if (at != std::string::npos && at > 0)
+				a_message.replace(at, 1, "\n    ");
+			return a_message;
+		}
+
 		void WriteReport()
 		{
 			std::ofstream out(OutputDir() / L"Vitals-Report.txt", std::ios::trunc);
@@ -909,7 +922,7 @@ namespace Vitals
 						out << "\n" << (std::string_view(sev) == "problem" ? "PROBLEMS" : std::string_view(sev) == "warning" ? "WARNINGS" : "NOTES") << "\n";
 						header = true;
 					}
-					out << "  - " << Redact(i.message) << "\n";
+					out << "  - " << Redact(i.category == "plugin_dll" ? BreakBeforeDetails(i.message) : i.message) << "\n";
 					if (!i.advice.empty())
 						out << "    What to do: " << Redact(i.advice) << "\n";
 					out << "\n";  // a blank line between entries

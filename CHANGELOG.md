@@ -1,10 +1,18 @@
 # Vitals changelog
 
 All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed. Dates are
-2026. Newest first: 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
+2026. Newest first: 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
+
+## 0.4.2 (2026-11-16: report layout)
+Not yet tested in game.
+* **Changed:** in `Vitals-Report.txt`, a not-running DLL's finding now puts the reason on the first line and the details
+  (when it was built, File version, Installed by, other copies) on a second indented line, so the reason reads first.
+  Nothing else changed.
 
 ## 0.4.1 (2026-11-16: ALL CLEAR line, smaller download)
-Not yet tested in game.
+Tested in game 2026-11-16: 1.11.240 with A StoryWealth through Vortex (a 47-minute session with a save loaded and saved,
+clean exit) and 1.10.163 through Mod Organizer 2 (save loaded and saved), each with the ALL CLEAR line, the share pack and
+the doctor behaving as expected. **Not tested:** 1.10.984.
 * **New:** when Vitals finds no problems and no warnings, `Vitals-Report.txt` now starts with "ALL CLEAR: Vitals ran and
   found no problems or warnings". Players with a healthy setup saw no box and could not tell whether Vitals had run.
 * **Changed:** the installer's share-pack page explains what the pack holds and why, then gives the three steps to send it
