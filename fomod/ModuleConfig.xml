@@ -44,9 +44,20 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 							<typeDescriptor><type name="Recommended" /></typeDescriptor>
 						</plugin>
 						<plugin name="Yes, help improve Vitals">
-							<description>Vitals saves a log pack (Vitals-Share.zip) on your PC each launch, with your user name, PC name, save names, emails, IP addresses, keys and private paths scrubbed out. Vitals never sends it.
+							<description>WHAT IT IS
+Each launch, Vitals saves a zip of its own reports and your F4SE logs, load order, a few game settings, a short PC summary and recent crash logs. The zip stays on your PC and Vitals never sends it. It helps us see which mods break on which setups, so we can add new rules to Vitals that warn everyone.
 
-To help: join https://discord.gg/XghtBZUFNW, press Send my pack, and drag Vitals-Share.zip (it is in Documents\My Games\Fallout4\F4SE\Vitals) into the private channel. Only the maintainer can see it. Full details: https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default</description>
+HOW TO SEND YOUR VITALS PACK
+1. Join the Vitals Discord (https://discord.gg/XghtBZUFNW) and press "Send my pack" to create a ticket.
+2. Find your pack at Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Share.zip
+3. Drag it into your private ticket channel and send it. Done.
+
+All personal information (user name, PC name, save and character names, emails, IP addresses, keys, private folder paths) is scrubbed from the pack, and you can open it to check before you send it. Only the maintainer can see your ticket.
+
+NO Vitals-Share.zip THERE?
+You have not launched Fallout 4 with Vitals enabled yet, or you picked "No thanks" at install. Reinstall Vitals, choose "Yes, help improve Vitals", then launch the game.
+
+Full details: https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default</description>
 							<files>
 								<folder source="20 Share - Yes" destination="" />
 							</files>
