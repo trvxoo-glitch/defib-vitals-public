@@ -14,7 +14,9 @@ Layout of the release archive (the zip CI publishes is this folder's contents):
   20 Share - Yes/F4SE/Plugins/Vitals/share-optin.txt  share pack marker, "share=1" (installer page 2, not the default)
   21 Share - No/F4SE/Plugins/Vitals/share-optin.txt   the same file with "share=0" (the default), so a reinstall that
                                                        picks No replaces an earlier Yes even when files are merged
-  Docs/                                        README, user guide, troubleshooting, changelog, licences
+  Docs/                                        README, user guide, privacy page, AI disclosure, licence (the small set every player gets)
+A second folder, "<out>-extra", is the optional "Extra Docs" download (Nexus optional file): the other guides and the
+changelog. Nothing in it is needed to run Vitals.
 Manual install: copy the contents of "00 Core" and of ONE settings folder into the game's Data folder.
 
 `check` fails when a folder or file named in ModuleConfig.xml is missing, when the two info.xml versions
@@ -46,9 +48,10 @@ Vitals then deletes the pack at the next launch.
 SHARE_NO_TEXT = """share=0
 Vitals share pack: OFF. You chose "No thanks" in the installer. Vitals keeps everything on your PC and makes no pack.
 """
-DOCS = ["README.md", "CHANGELOG.md", "AI_DISCLOSURE.md", "LICENSE", "EXCEPTIONS",
-        "docs/USER_GUIDE.md", "docs/TROUBLESHOOTING.md", "docs/FAQ.md", "docs/PRIVACY_AND_SAFETY.md", "docs/CONTRIBUTING.md",
-        "docs/FILE_FORMATS.md", "docs/ARCHITECTURE.md", "docs/BUILDING.md", "docs/MAINTAINING.md", "docs/HISTORY.md", "docs/ROADMAP.md"]
+DOCS = ["README.md", "AI_DISCLOSURE.md", "LICENSE", "EXCEPTIONS",  # LICENSE and EXCEPTIONS stay: GPL-3.0 needs the text with the DLL
+        "docs/USER_GUIDE.md", "docs/PRIVACY_AND_SAFETY.md"]
+EXTRA_DOCS = ["CHANGELOG.md", "docs/TROUBLESHOOTING.md", "docs/FAQ.md", "docs/CONTRIBUTING.md", "docs/FILE_FORMATS.md",
+              "docs/ARCHITECTURE.md", "docs/BUILDING.md", "docs/MAINTAINING.md", "docs/HISTORY.md", "docs/ROADMAP.md"]
 
 
 def version():
@@ -110,7 +113,21 @@ def build(dll, out):
         dest = os.path.join(out, "Docs", *d.split("/"))  # keep docs/ so the README's relative links work
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copy2(p, dest)
+    build_extra(out + "-extra")
     return check(out)
+
+
+def build_extra(extra):
+    """The optional Extra Docs download: every document that is not in Docs/ of the main package."""
+    if os.path.exists(extra):
+        shutil.rmtree(extra)
+    for d in EXTRA_DOCS:
+        p = os.path.join(ROOT, d)
+        if not os.path.exists(p):
+            raise SystemExit(f"FOMOD ERROR: documentation file {d} is missing (listed in EXTRA_DOCS)")
+        dest = os.path.join(extra, *d.split("/"))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(p, dest)
 
 
 def check(pkg):

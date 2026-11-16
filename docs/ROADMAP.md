@@ -1,10 +1,11 @@
 # Vitals roadmap
 
-Updated 2026-11-15 with 0.4.0. Items move to CHANGELOG.md when done. Ask the project owner before starting a release.
+Updated 2026-11-16 with 0.4.1. Items move to CHANGELOG.md when done. Ask the project owner before starting a release.
 
 ## Done
 * 0.3.0: preflight report without launching, last 5 sessions, load order from inside the game, hook owners and game
   stubs, plain-language report.
+* 0.4.1: ALL CLEAR line in the report; the download split into the main file and an optional Extra Docs file.
 * 0.4.0: the opt-in share pack and its scrubber, other-copies and mod-manager update evidence, Copy report, per-version
   knowledge rules.
 

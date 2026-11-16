@@ -1,6 +1,6 @@
 # Vitals user guide
 
-For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+For players. Mod authors also want [FILE_FORMATS.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/FILE_FORMATS.md) and [ARCHITECTURE.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/ARCHITECTURE.md).
 
 ## What happens when you start the game
 
@@ -22,7 +22,7 @@ For players. Mod authors also want [FILE_FORMATS.md](FILE_FORMATS.md) and [ARCHI
 
 | File | What it is |
 | --- | --- |
-| `Vitals-Report.txt` | **Start here.** Plain-language problems, warnings, notes, and what to do |
+| `Vitals-Report.txt` | **Start here.** Plain-language problems, warnings, notes, and what to do. Written on every launch; when nothing is wrong it says "ALL CLEAR" near the top (no start-up box is shown then) |
 | `Vitals-summary.txt` | Short technical summary (versions, counts, address check) |
 | `Vitals.jsonl` | Every detail, one JSON object per line. For tools and for sharing when asking for help |
 | `Vitals.prev.jsonl` | The previous session |

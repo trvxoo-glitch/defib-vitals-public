@@ -896,6 +896,8 @@ namespace Vitals
 				REX::FModule::GetExecutingModule().GetFileVersion().string(), RuntimeName(), F4SE::GetF4SEVersion().string());
 			out << std::format("{} problem(s), {} warning(s), {} note(s). Problems may crash the game; warnings are mods that will not work as installed.\n\n",
 				count("problem"), count("warning"), count("info"));
+			if (count("problem") == 0 && count("warning") == 0)
+				out << "ALL CLEAR: Vitals ran and found no problems or warnings, so no box was shown. This file is written on every launch.\n\n";
 			for (const auto& i : g_info)
 				out << "  " << Redact(i) << "\n";
 			for (const char* sev : { "problem", "warning", "info" }) {

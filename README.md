@@ -55,7 +55,7 @@ whether to make a share pack you can send (default: no).
 After one launch (the main menu is enough), open `Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt`.
 
 ```
-Vitals 0.4.0 report | game 1.11.240.0 (AE) | F4SE 0.7.9.0
+Vitals 0.4.1 report | game 1.11.240.0 (AE) | F4SE 0.7.9.0
 1 problem(s), 1 warning(s), 0 note(s). Problems may crash the game; warnings are mods that will not work as installed.
 
   Mod manager: Vortex; looked through 1041 installed mods for other copies of the 1 not-running DLL(s) in 205 ms
@@ -73,7 +73,7 @@ WARNINGS
 ```
 
 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) explains every message and setting, and
-[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) lists common problems and fixes.
+[docs/TROUBLESHOOTING.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/TROUBLESHOOTING.md) lists common problems and fixes.
 
 ### How Vitals fits with other tools
 
@@ -122,16 +122,16 @@ WARNINGS
 | Document | Contents |
 | --- | --- |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Every report message, setting and output file, for players |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Problems and fixes |
-| [docs/FAQ.md](docs/FAQ.md) | Short answers |
+| [docs/TROUBLESHOOTING.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/TROUBLESHOOTING.md) | Problems and fixes |
+| [docs/FAQ.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/FAQ.md) | Short answers |
 | [docs/PRIVACY_AND_SAFETY.md](docs/PRIVACY_AND_SAFETY.md) | Exactly what Vitals reads, writes and sends (it sends nothing) |
-| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Adding rules, bug reports, code changes |
-| [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md) | Vitals.jsonl records, address lists, baselines, knowledge rules, breadcrumbs, status.json |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the plugin is built: start-up order, each source file, design rules |
-| [docs/BUILDING.md](docs/BUILDING.md) | Building on Windows, in CI and from Linux |
-| [docs/MAINTAINING.md](docs/MAINTAINING.md) | Patch day, updating the library, releases, test matrix |
-| [docs/HISTORY.md](docs/HISTORY.md) | How Vitals was made and what Stage 0 of Defib found |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | What comes next |
+| [docs/CONTRIBUTING.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/CONTRIBUTING.md) | Adding rules, bug reports, code changes |
+| [docs/FILE_FORMATS.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/FILE_FORMATS.md) | Vitals.jsonl records, address lists, baselines, knowledge rules, breadcrumbs, status.json |
+| [docs/ARCHITECTURE.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/ARCHITECTURE.md) | How the plugin is built: start-up order, each source file, design rules |
+| [docs/BUILDING.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/BUILDING.md) | Building on Windows, in CI and from Linux |
+| [docs/MAINTAINING.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/MAINTAINING.md) | Patch day, updating the library, releases, test matrix |
+| [docs/HISTORY.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/HISTORY.md) | How Vitals was made and what Stage 0 of Defib found |
+| [docs/ROADMAP.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/ROADMAP.md) | What comes next |
 
 ## Licence
 
