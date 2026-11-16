@@ -52,7 +52,7 @@ report (while the start-up box is open, so **Stop game** does not lose it) and a
 F4SE's logs, your load order, a few game settings, a short PC summary, a count-only summary of the Papyrus logs and
 recent crash logs, with your user name, PC name, save and character names, emails, IP addresses, keys and private
 folder paths removed. Open it to see exactly what is inside; `scrub-report.txt` says how
-many items were removed. Vitals never sends it. To help, join https://discord.gg/XghtBZUFNW, press **Send my pack** and drag it into your private channel, or attach it to a
+many items were removed. Vitals never sends it. To help, join https://discord.gg/XghtBZUFNW, press **Upload** and drag it into your private channel, or attach it to a
 [GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues). Full details and how to turn it off:
 [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md#the-share-pack-opt-in-off-by-default).
 

@@ -92,7 +92,7 @@ is random (not from your PC) and a new one is made if you delete `share-id.txt`;
 file before sending it; nothing leaves without you; each pack goes into a private channel only you and the maintainer
 can see; packs are deleted after 90 days or on request; and only counts across five or more installs are ever published.
 
-**Sending it.** Your choice, any time: join the Vitals Discord server (https://discord.gg/XghtBZUFNW), press **Send my pack**, and drag
+**Sending it.** Your choice, any time: join the Vitals Discord server (https://discord.gg/XghtBZUFNW), press **Upload**, and drag
 `Vitals-Share.zip` into the private channel that opens. Or attach it to a
 [GitHub issue](https://github.com/trvxoo-glitch/defib-vitals-public/issues) if you do not use Discord (an issue is public, so
 read the zip first). Instructions for the person running the server are in [DISCORD_INBOX.md](https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/DISCORD_INBOX.md).

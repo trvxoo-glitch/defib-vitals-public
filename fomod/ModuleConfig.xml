@@ -45,10 +45,10 @@ Note: reinstalling replaces Vitals.ini, so copy any settings you changed first.<
 						</plugin>
 						<plugin name="Yes, help improve Vitals">
 							<description>WHAT IT IS
-Each launch, Vitals saves a zip of its own reports and your F4SE logs, load order, a few game settings, a short PC summary and recent crash logs. The zip stays on your PC and Vitals never sends it. It helps us see which mods break on which setups, so we can add new rules to Vitals that warn everyone.
+When you choose to help, on each launch Vitals saves a zip of its own reports and your F4SE logs, load order, a few game settings, a short PC summary and recent crash logs. The zip stays on your PC and Vitals never sends it. It helps us see which mods break on which setups, so we can add new rules to Vitals that warn everyone.
 
 HOW TO SEND YOUR VITALS PACK
-1. Join the Vitals Discord (https://discord.gg/XghtBZUFNW) and press "Send my pack" to create a ticket.
+1. Join the Vitals Discord (https://discord.gg/XghtBZUFNW) and press the "Upload" button to create a ticket.
 2. Find your pack at Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Share.zip
 3. Drag it into your private ticket channel and send it. Done.
 

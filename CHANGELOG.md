@@ -8,7 +8,7 @@ Not yet tested in game.
 * **New:** when Vitals finds no problems and no warnings, `Vitals-Report.txt` now starts with "ALL CLEAR: Vitals ran and
   found no problems or warnings". Players with a healthy setup saw no box and could not tell whether Vitals had run.
 * **Changed:** the installer's share-pack page explains what the pack holds and why, then gives the three steps to send it
-  (join the Discord and press Send my pack, find `Vitals-Share.zip`, drag it in), and what to do if the file is missing.
+  (join the Discord and press Upload, find `Vitals-Share.zip`, drag it in), and what to do if the file is missing.
 * **Changed:** the Nexus download is smaller. The main file keeps the README, user guide, privacy page, AI disclosure,
   LICENSE and EXCEPTIONS. The other guides (troubleshooting, FAQ, file formats, architecture, building, maintaining,
   contributing, history, roadmap) and this changelog are in the optional file **Vitals Extra Docs** and on GitHub; the
