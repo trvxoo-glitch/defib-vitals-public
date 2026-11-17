@@ -23,7 +23,7 @@ How the plugin is put together, so it can be changed safely years from now.
    goes to `Vitals.jsonl`.
 6. **Evidence-based rules.** Doctor rules come from findings confirmed in game, dated, with the build.
 7. **No personal data.** Paths are redacted (`Redact`) before anything is written.
-8. **No network code.** Vitals never sends anything. The opt-in share pack is a file the player chooses to send;
+8. **No network code in the plugin.** `Vitals.dll` never sends anything. The opt-in share pack is a file the player chooses to send;
    everything in it passes the scrubber (`include/Vitals/Scrub.h`), and the list of files is fixed in `Share.cpp`.
 
 ## Start-up order
@@ -36,6 +36,11 @@ How the plugin is put together, so it can be changed safely years from now.
 | `kGameDataReady` (data loaded, main menu next) | `CheckAddresses` (adds the address section to the report; skipped with `address_check_unavailable` when the Address Library is not usable), `WriteSharePack("main_menu")` when opted in, `RunLayoutProbes`; `ListPapyrusNatives` one task tick later, after every plugin's own `kGameDataReady` handler | `Addresses.cpp`, `Natives.cpp`, `Probes.cpp` |
 | `kPostLoadGame` / `kNewGame` | pointer re-check, probes, `session` record | `Addresses.cpp`, `Probes.cpp` |
 | every message | `MarkPhase` (`phase` record, `status.json`), optional test-rig exit | `Status.cpp` |
+
+`RunDoctor` also compares with the last launch (`CompareWithLastLaunch` in `Doctor.cpp`): it reads only `Vitals.prev.jsonl` (the
+`start`, `environment`, `plugin`, `doctor` and `phase` lines; 300 ms limit) and the names of `crash*.log` files in the F4SE folder
+(1 s limit), as its own guarded step, so a failure there leaves the rest of the report intact. `plugins_active` in the `doctor`
+record is what the next launch compares.
 
 The doctor runs at PostPostLoad on purpose: every DLL that is going to load has loaded, so "not running" is final,
 and a message box there appears before a load-order crash at the main menu.
@@ -56,6 +61,7 @@ and a message box there appears before a load-order crash at the main menu.
 | `include/Vitals/Share.h` | Share-pack summaries that need no game: Papyrus log counts, Vortex manifest to DLL sources, breadcrumbs as text, the INI allowlist, size caps |
 | `include/Vitals/Zip.h` | Stored-only zip writer (CRC-32) |
 | `tools/share_inbox.py` | Downloads packs from the Discord server (maintainers) and counts not-running DLLs, crash locations and unbound natives across installs |
+| `include/Vitals/Launch.h` | Report text that compares launches, plain C++20, tested with the rest: reading one launch's `Vitals.jsonl` (cut-off lines skipped), the "Last launch" recap, "CHANGED SINCE LAST LAUNCH" (DLLs by SHA-256), rules-file order by `# Generated:` date and the rules stamp, `patchedby` owner lookup, `dllbuild` matching |
 | `include/Vitals/Rules.h` | The parts that need no game, plain C++20: F4SE loader rules (`Loader::Check`), plugin-name decoding, INI values, return-stub detection, popup decision and key files, the real load order, UTF-8-safe cuts, user-folder redaction. Tested by `tests/cpp/rules_test.cpp` |
 | `include/Vitals/Formats.h` | Readers for files on disk, plain C++20: PE exports and `F4SEPlugin_Version` data, the Address Library table, TES4 plugin headers. Every bound is checked by subtraction, so a crafted size or offset cannot wrap. Fuzzed and tested by `tests/cpp/rules_test.cpp` (CI also runs it under AddressSanitizer) |
 | `src/Addresses.cpp` | Address check: resolve IDs, read bytes, compare with list/baseline, jump decoding and hook owners (`ResolveOwner`), singleton classes, baseline capture |

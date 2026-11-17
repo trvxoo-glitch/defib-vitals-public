@@ -676,6 +676,37 @@ def _pe_with_exports(names):
     return bytes(d)
 
 
+class ExtraDocsTests(unittest.TestCase):
+    def test_extra_zip_has_index_and_no_broken_relative_links(self):
+        import re
+        import make_package
+        with tempfile.TemporaryDirectory() as tmp:
+            extra = os.path.join(tmp, "extra")
+            make_package.build_extra(extra)
+            self.assertTrue(os.path.isfile(os.path.join(extra, "README.md")))
+            files = {os.path.relpath(os.path.join(d, f), extra).replace(os.sep, "/") for d, _, fs in os.walk(extra) for f in fs}
+            for rel in sorted(f for f in files if f.endswith(".md")):
+                text = open(os.path.join(extra, rel), encoding="utf-8").read()
+                for target in re.findall(r"\]\(([^)\s]+)\)", text):
+                    if re.match(r"^[a-z][a-z0-9+.-]*:|^#", target, re.I):
+                        continue
+                    path = os.path.normpath(os.path.join(os.path.dirname(rel), target.partition("#")[0])).replace(os.sep, "/")
+                    self.assertIn(path, files, f"{rel} links to {target}, which is not in the Extra Docs zip")
+            # the index names every guide in the zip
+            index = open(os.path.join(extra, "README.md"), encoding="utf-8").read()
+            for d in make_package.EXTRA_DOCS:
+                self.assertIn(d, index)
+
+    def test_link_rewrite(self):
+        import make_package
+        present = set(make_package.EXTRA_DOCS)
+        out = make_package.link_to_github("[a](USER_GUIDE.md#x) [b](FILE_FORMATS.md) [c](https://e.x) [d](#h)", "docs/FAQ.md", present)
+        self.assertIn("(https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/USER_GUIDE.md#x)", out)
+        self.assertIn("[b](FILE_FORMATS.md)", out)
+        self.assertIn("[c](https://e.x)", out)
+        self.assertIn("[d](#h)", out)
+
+
 class ThirdReviewTests(unittest.TestCase):
     def test_package_refuses_dangerous_output(self):
         import make_package

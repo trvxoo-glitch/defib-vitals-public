@@ -36,7 +36,7 @@ IDs a port relies on point at the expected code, Papyrus native functions per DL
 | Requires | [F4SE](https://www.nexusmods.com/fallout4/mods/42147) for your game version, and [Address Library for F4SE Plugins](https://www.nexusmods.com/fallout4/mods/47327) (without it Vitals still starts and says so; only the address check is skipped) |
 | Safe | Reads only. Never writes to game memory, installs no hooks, adds no plugin (.esp) and no save data, and has no network code. Its files go only in `Documents\My Games\Fallout4\F4SE\Vitals`. Remove it any time. |
 | Works with | Buffout 4, Buffout 4 NG, Addictol and their crash loggers, CLASSIC, LOOT, Vortex, Mod Organizer 2 |
-| AI Assisted | Written with Claude (Anthropic), tested in game by a person. See `AI_DISCLOSURE.md`. |
+| AI Assisted | Written with Claude (Anthropic); a person runs the in-game tests and decides what ships. See `AI_DISCLOSURE.md`. |
 
 ## Install
 

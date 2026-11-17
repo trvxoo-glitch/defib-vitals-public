@@ -1,12 +1,25 @@
 # Vitals changelog
 
-All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed. Dates are
-2026. Newest first: 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
+All releases are AI Assisted (see AI_DISCLOSURE.md). Dates are 2026. Newest first: 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
 
-## 0.4.2 (2026-11-16: report layout, share-pack scrubber and image-scan fixes)
-Not yet tested in game.
+## 0.4.2 (2026-11-17: last-launch recap, changes since last launch, rule updates, report layout and fixes)
 * **Changed:** in `Vitals-Report.txt`, a not-running DLL's finding now puts the reason on the first line and the details
   (when it was built, File version, Installed by, other copies) on a second indented line, so the reason reads first.
+* **New:** the report starts with a recap of the last launch (when it started, how long until game data was ready and a
+  save loaded, whether the game closed normally) and names a `crash*.log` that was written after that launch started. It
+  never says "crashed": it only says what the records show.
+* **New:** a "CHANGED SINCE LAST LAUNCH" section lists F4SE DLLs that were replaced (old version -> new version), added or
+  removed, a different game or F4SE version, and a different active plugin count. DLLs are compared by their SHA-256, never
+  by file date. It says "Nothing changed since the last launch." when that is true.
+* **New:** the report header lists which knowledge-rule files were read and how many rules came from each. When two
+  files hold the same rule, the file with the newer `# Generated: YYYY-MM-DD` header wins (files with no date come first,
+  as before), so a newer rules file downloaded on its own outranks the one that shipped.
+* **New:** knowledge rules can name one build of a DLL (`dllbuild`, matched on the plugin version the running DLL
+  reports), and `patchedby` rules let the address check say "normally patched by Addictol.dll, which is running" next to
+  functions whose bytes differ from the baseline. No rule of the first kind ships yet.
+* **Changed (rules):** each census rule for a DLL is now limited to the game versions it was seen on or is true for
+  (`dll@AE`, `dll@NG,AE`), so Old-Gen players no longer see "does not run on this game version" advice that is wrong for
+  them. The old main menu `MainMenu.swf` rule now applies to Anniversary builds only.
 * **Fixed (share pack):** a folder path was left whole in `Vitals-Share.zip` instead of being cut to its last two names when
   a folder name held an apostrophe (`Robin's Mods`), a bracket group (`Program Files (x86)`, `Mods [Vortex]`) or a version
   number followed by a space (`Fallout 4 v1.10.163 Old`). Such paths are now shortened like any other.

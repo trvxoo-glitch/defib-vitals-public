@@ -2,7 +2,7 @@
 
 Vitals was written for **Defib**, a project to revive abandoned F4SE mods on every Fallout 4 build
 (1.10.163 Old-Gen, 1.10.984 Next-Gen, 1.11.x Anniversary). It is AI Assisted: the code and documents were written
-by Claude (Anthropic) in cloud sessions, and every version was tested in game by the project owner on their PC.
+by Claude (Anthropic) in cloud sessions, and the project owner tests builds in game on their own PC.
 
 ## Why it exists
 
@@ -17,7 +17,7 @@ workbench") was about building it and proving it right on two game builds.
 | --- | --- | --- |
 | 0.1.0 | 2026-11-10 | Environment report, non-fatal address check (1,772 library IDs), breadcrumbs, Papyrus natives, log analyzer. Written before anything ran in game |
 | CI | 2026-11-11 | First Windows build. CI caught a real bug: the version block was not compiled in, so F4SE 0.7.x would have ignored the DLL. CI now fails on that |
-| 0.2.0 | 2026-11-11 | Hook detection, exe-derived baselines, pointer re-check, smoke test. First in-game run on 1.11.240: 1,772/1,772 IDs resolve, 991 Papyrus natives |
+| 0.2.0 | 2026-11-11 | Hook detection, exe-derived baselines, pointer re-check, smoke test. First in-game run on 1.11.240: 1,772/1,772 IDs resolve (each finds an address; whether the bytes there match is checked separately), 991 Papyrus natives |
 | 0.2.1-0.2.3 | 2026-11-11/12 | BSTimer probe fixed, local baselines, singleton classes, hooks per plugin, `--compare`. Confirmed on 1.11.240 and 1.10.163 (through MO2) |
 | census | 2026-11-12 | First census launch of the A StoryWealth list on 1.11.240: refused DLLs, old interface files, inactive masters, the Runtime Database dependency. These became the doctor |
 | census | 2026-11-13 | First runs of 0.3.0 on both builds: 1.11.240 A StoryWealth 68 minutes with several saves and no crash, doctor listed 20 DLLs F4SE silently skips ("no version data"), 16 built before April 2024 and 4 after; 1.10.163 near-vanilla clean with 0 problems. Start-up box tested; button labels shortened to fit |
@@ -26,8 +26,8 @@ workbench") was about building it and proving it right on two game builds.
 | 0.3.2 | 2026-11-15 | The start-up box shows on every launch until the player presses Don't show; Continue no longer hides it |
 | Nexus | 2026-11-15 | Released on Nexus Mods. First player report: works on Next-Gen 1.10.984 (36 of 43 plugins running, 772-plugin load order) |
 | 0.4.0 | 2026-11-15 | Opt-in share pack with a tested scrubber (sent by the player through a private Discord channel), Copy report button, knowledge rules limited to game versions, and evidence from the mod manager (which mod installed a DLL, other installed copies, Vortex's and MO2's own update check). Three more outside code reviews of this build fixed a possible start-up stall, the wrong MO2 instance, privacy gaps (save and character names) and a share pack that was never written when the player pressed Stop game |
-| 0.4.2 | 2026-11-16 | Report layout: a not-running DLL's details (build date, File version, Installed by) go on their own indented line under the reason; share-pack scrubber keeps shortening paths whose folder names hold an apostrophe, brackets or a version number; image scan reads through SafeRead |
 | 0.4.1 | 2026-11-16 | Report starts with ALL CLEAR when nothing is wrong (after Nexus comments from players who saw no box and could not tell Vitals had run); the download is split into the main file and an optional Extra Docs file |
+| 0.4.2 | 2026-11-17 | The report starts with a recap of the last launch and lists what changed since (DLLs compared by SHA-256); the rules the report used are named, a newer rules file outranks an older one, and census rules for DLLs name the game versions they are true for; a not-running DLL's details go on their own indented line; the share-pack scrubber keeps shortening paths whose folder names hold an apostrophe, brackets or a version number; the image scan reads through SafeRead |
 
 ## What Stage 0 found (lessons worth keeping)
 
@@ -52,4 +52,4 @@ workbench") was about building it and proving it right on two game builds.
 * Code on GitHub, built on GitHub Actions (`windows-2022`, MSVC, XMake 3.1.2), with a Linux
   cross-compile (clang-cl + xwin) for quick checks from the cloud.
 * The library is pinned to one Dear-Modding-FO4/commonlibf4 commit.
-* Every claim was checked in game before being written down as fact; open questions stayed marked as unverified.
+* Claims about how the game behaves were checked in game where that was possible; open questions stayed marked as unverified.

@@ -33,7 +33,8 @@ For players. Mod authors also want [FILE_FORMATS.md](https://github.com/trvxoo-g
 | `Vitals-Share.zip`, `share-id.txt` | Only if you opted in: your logs with personal details scrubbed, for you to send if you want to help. See [Share pack](#share-pack) |
 | `Vitals-Share-new.zip` | Only if `Vitals-Share.zip` was open in another program when Vitals tried to replace it: this launch's pack |
 
-Your Windows user name is replaced with `<user>` in every file, so the files are safe to share.
+Your Windows user name is replaced with `<user>` in every file, so you can share them when you ask for help. They still name
+your mods and your load order: that is the point of sharing them. See [PRIVACY_AND_SAFETY.md](PRIVACY_AND_SAFETY.md).
 
 ## Start-up box buttons
 
@@ -58,8 +59,8 @@ many items were removed. Vitals never sends it. To help, join https://discord.gg
 
 ## Severities
 
-* **Problem**: likely to crash the game or stop mods from working. Fix these first.
-* **Warning**: may cause trouble, or is known to on some setups.
+* **Problem**: may crash the game. Fix these first. Only problems always open the start-up box.
+* **Warning**: a mod will not work as installed (for example an F4SE plugin that is not running). It will not crash the game by itself.
 * **Note**: for your information (counts, helper DLLs that are not F4SE plugins).
 
 ## Messages and what to do
@@ -127,7 +128,7 @@ Vitals keeps running and skips its own address check.
 
 ### "N full plugins are active" / "N light plugins"
 
-The game allows 254 full plugins (plus the base game) and 4096 light (ESL) ones.
+The game allows 254 full plugins, counting Fallout4.esm, the DLCs and the Creation Club files, and 4096 light (ESL) ones.
 
 ### "Loose mod files are installed, but the game's INI settings do not turn on loose files"
 
@@ -144,12 +145,35 @@ These come from `Vitals\knowledge\*.txt`. Each message says what was found and w
 different mods. Find which mod provides the file (in Vortex: the file conflicts view; in MO2: the Data tab) and
 disable it.
 
+### "Last launch (...)" and "CHANGED SINCE LAST LAUNCH" (0.4.2)
+
+The report starts with a short recap of the previous launch, read from `Vitals.prev.jsonl`: when it started, how many
+seconds until game data was ready (just before the main menu) and until a save loaded, and whether the game closed
+normally. "Vitals saw no later event" means exactly that: the game may have crashed, been closed from Task Manager, or
+simply been closed without a clean exit. If a `crash*.log` in the F4SE folder was written after that launch started, its
+file name and how many minutes after the start it was written are shown. Vitals never says "crashed" on its own.
+
+"CHANGED SINCE LAST LAUNCH" lists F4SE DLLs that were **Replaced** (old version -> new version, or "different file" when the
+version is the same), **New** or **Removed**; a different game or F4SE version; and a different number of active plugins.
+DLLs are compared by their SHA-256, never by file date, so only a real change is listed. "Nothing changed since the last
+launch." means just that. It compares with the one previous launch; `defib_logs.py --compare` goes further back.
+
+### "Knowledge rules: ... from defib-census.txt" (report header)
+
+Names the rules files read and how many rules each gave. If two files hold the same rule, the first file listed wins:
+files without a `# Generated: YYYY-MM-DD` line first, then dated files, newest first. A rule can name the game versions it
+applies to (`dll@AE`): on other versions it is skipped.
+
 ### "Functions detoured by mods" (address check)
 
 Lists, per DLL, how many engine functions it hooks at the main menu. This is normal for mods like Buffout 4,
 Addictol and X-Cell. "unattributed trampoline" means the hook jumps to memory outside any DLL, which is how some
 frameworks hook. The game's own jump stubs are no longer counted. Use `defib_logs.py --compare` to see which hooks a
 newly installed mod added.
+
+Functions whose bytes differ from the baseline without a jump into a mod (`patched in place` or `differs`) can be another
+mod's patch. When a running DLL is known to patch that function the report says, for example, "3 functions that differ from
+the expected bytes are normally patched by Addictol.dll, which is running". That is a likely explanation, not proof.
 
 ## Settings
 
@@ -158,7 +182,7 @@ The most useful:
 
 * `iPopupMode=0` turns the message box off (the report is still written). The box's **Don't show** button stops it listing those plugins again; problems that may crash the game still show.
 * `iPopupMode=1` (default) shows the box on every launch while there is something to list. **Continue** and **Stop game** change nothing; only **Don't show** silences plugins. `iPopupMode=2` behaves the same.
-* `iKeepSessions=10` keeps more history.
+* `iKeepSessions=10` keeps more history (`0` keeps none; it never deletes what is already in `history\`). Every key and its limits: [FILE_FORMATS.md](FILE_FORMATS.md#vitalsini).
 * `bSharePack=0` always off, `1` on; commented out (default) follows the installer's choice (`share=1` in `Data\F4SE\Plugins\Vitals\share-optin.txt`).
 
 ## Comparing launches

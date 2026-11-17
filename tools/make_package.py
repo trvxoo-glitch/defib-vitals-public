@@ -117,17 +117,47 @@ def build(dll, out):
     return check(out)
 
 
+GITHUB_BLOB = "https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/"
+EXTRA_INDEX = "docs/EXTRA_DOCS_INDEX.md"  # becomes README.md at the top of the Extra Docs zip
+
+
+def link_to_github(text, rel, present):
+    """In a copy of a guide for the Extra Docs zip: a relative link to a file that is not in the zip points at GitHub instead.
+    rel is the guide's own path in the repo; present is the set of repo paths that are in the zip."""
+    def fix(m):
+        target = m.group(2)
+        if re.match(r"^[a-z][a-z0-9+.-]*:|^#", target, re.I):
+            return m.group(0)
+        path, _, anchor = target.partition("#")
+        full = os.path.normpath(os.path.join(os.path.dirname(rel), path)).replace(os.sep, "/")
+        if full in present:
+            return m.group(0)
+        return f"{m.group(1)}({GITHUB_BLOB}{full}{'#' + anchor if anchor else ''})"
+    return re.sub(r"(\[[^\]]*\])\(([^)\s]+)\)", fix, text)
+
+
 def build_extra(extra):
-    """The optional Extra Docs download: every document that is not in Docs/ of the main package."""
+    """The optional Extra Docs download: every document that is not in Docs/ of the main package, an index README.md,
+    and links to guides that are not in this zip turned into GitHub links."""
     if os.path.exists(extra):
         shutil.rmtree(extra)
+    present = set(EXTRA_DOCS) | {"README.md"}
     for d in EXTRA_DOCS:
         p = os.path.join(ROOT, d)
         if not os.path.exists(p):
             raise SystemExit(f"FOMOD ERROR: documentation file {d} is missing (listed in EXTRA_DOCS)")
         dest = os.path.join(extra, *d.split("/"))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        shutil.copy2(p, dest)
+        if d.endswith(".md"):
+            text = open(p, encoding="utf-8").read()
+            with open(dest, "w", encoding="utf-8", newline="") as f:
+                f.write(link_to_github(text, d, present))
+        else:
+            shutil.copy2(p, dest)
+    index = os.path.join(ROOT, *EXTRA_INDEX.split("/"))
+    if not os.path.exists(index):
+        raise SystemExit(f"FOMOD ERROR: {EXTRA_INDEX} is missing")
+    shutil.copy2(index, os.path.join(extra, "README.md"))
 
 
 def check(pkg):
