@@ -1,5 +1,6 @@
 #include "Vitals.h"
 #include "Vitals/Formats.h"
+#include "Vitals/Launch.h"
 #include "Vitals/ModManagers.h"
 #include "Vitals/Rules.h"
 #include "Vitals/Share.h"
@@ -49,6 +50,10 @@ namespace Vitals
 		std::vector<Issue>       g_issues;
 		std::vector<std::string> g_info;       // short facts for the report header
 		std::vector<std::string> g_addrNotes;  // added at game-data-ready
+		std::string              g_recap;      // "Last launch (...)", from the previous launch's Vitals.jsonl
+		std::vector<std::string> g_changes;    // "CHANGED SINCE LAST LAUNCH" lines
+		std::optional<std::size_t>   g_activePlugins;  // active plugins found in plugins.txt (written to the doctor record)
+		std::vector<Rules::Launch::Owner> g_owners;    // "patchedby" rules: which DLL normally patches which function
 
 		Issue& Add(std::string a_sev, std::string a_cat, std::string a_subject, std::string a_msg, std::string a_advice = {}, std::string a_group = {})
 		{
@@ -305,8 +310,11 @@ namespace Vitals
 			std::string kind, match, extra, severity, message, source;
 		};
 
-		// Every .txt in Vitals\knowledge, in name order. The same rule (kind, match, extra) in two files is used once,
-		// so a rule copied into defib-known.txt and defib-census.txt is not reported twice.
+		// Every .txt in Vitals\knowledge. A rule that is in two files (same kind, match, extra) is used once, from the file
+		// read first: files without a "# Generated: YYYY-MM-DD" header line first, in name order, then the dated ones, newest
+		// first (Rules::Launch::RuleFileOrder). So a newer rules file, such as one downloaded on its own, outranks the one
+		// that came with the mod, and a rule copied into defib-known.txt and defib-census.txt is not reported twice.
+		// The report's header says which files the rules came from.
 		std::vector<Rule> LoadRules()
 		{
 			std::vector<Rule>                   rules;
@@ -316,12 +324,22 @@ namespace Vitals
 				if (e.path().extension() == L".txt")
 					files.push_back(e.path());
 			std::ranges::sort(files);
-			std::set<std::string> seen;
+			std::vector<std::vector<std::string>> texts;
+			std::vector<Rules::Launch::RuleFile>  info;
 			for (const auto& path : files) {
-				std::ifstream in(path);
-				std::string   line;
-				while (std::getline(in, line)) {
-					line = Trim(line);
+				std::ifstream            in(path);
+				std::vector<std::string> lines;
+				std::string              line;
+				while (std::getline(in, line))
+					lines.push_back(Trim(line));
+				info.push_back({ Narrow(path.filename().wstring()), Rules::Launch::GeneratedDate(lines), 0 });
+				texts.push_back(std::move(lines));
+			}
+			const auto            order = Rules::Launch::RuleFileOrder(info);
+			std::set<std::string> seen;
+			g_owners.clear();
+			for (const auto fi : order) {
+				for (const auto& line : texts[fi]) {
 					if (line.empty() || line[0] == '#' || line[0] == ';')
 						continue;
 					auto f = Split(line, '|');
@@ -342,12 +360,16 @@ namespace Vitals
 					if (sev == "warn")
 						sev = "warning";
 					if (sev != "problem" && sev != "warning" && sev != "info") {
-						Summary(std::format("Knowledge rule with unknown severity \"{}\" in {} (used as warning): {}", f[3], Narrow(path.filename().wstring()), line));
+						Summary(std::format("Knowledge rule with unknown severity \"{}\" in {} (used as warning): {}", f[3], info[fi].name, line));
 						sev = "warning";
 					}
-					rules.push_back({ kind, f[1], f[2], sev, f[4], Narrow(path.filename().wstring()) });
+					++info[fi].used;
+					if (kind == "patchedby")  // match = part of a function name, extra = the DLL that normally patches it
+						g_owners.push_back({ f[1], f[2] });
+					rules.push_back({ kind, f[1], f[2], sev, f[4], info[fi].name });
 				}
 			}
+			g_info.push_back(Rules::Launch::RulesStamp(info, order));
 			return rules;
 		}
 
@@ -568,6 +590,13 @@ namespace Vitals
 				// below (it knows this mod: a replacement, the file to use instead); any other is its own finding.
 				const Rule* refusedRule = nullptr;
 				for (const auto& r : a_rules) {
+					if (r.kind == "dllbuild" && Lower(r.match) == Lower(file)) {
+						// One build of a DLL: its own plugin version (a running DLL reports it; a file date proves nothing).
+						for (const auto& d : CurrentEnvironment().dlls)
+							if (d.running && Lower(d.file) == Lower(file) && Rules::Launch::DllBuildMatches(r.extra, d.pluginVersion))
+								Add(r.severity, "known_issue", file, r.message);
+						continue;
+					}
 					if (r.kind != "dll" || Lower(r.match) != Lower(file))
 						continue;
 					if (r.extra == "refused")
@@ -765,6 +794,7 @@ namespace Vitals
 					}
 				}
 			}
+			g_activePlugins = order.size() - missingFiles;
 			g_info.push_back(std::format("Load order: {} active plugins ({} full, {} light), from {}", order.size() - missingFiles, full, light, Narrow(txt.wstring())));
 			// Full plugins get load indexes 00-FD (254, counted here with Fallout4.esm, the DLCs and Creation Club
 			// files); FE holds the light plugins, FF is the game's own.
@@ -892,6 +922,66 @@ namespace Vitals
 			return a_message;
 		}
 
+		// Last launch: the recap, a crash log written after it started, and what changed since. Reads only the earlier
+		// launch's Vitals.jsonl (32 MB at most) and the names of crash*.log files; 300 ms for the file, 1 s for the folder.
+		void CompareWithLastLaunch()
+		{
+			namespace Lch = Rules::Launch;
+			const auto dir = OutputDir();
+			const auto now = [] { return std::chrono::steady_clock::now(); };
+			const auto parseUntil = now() + std::chrono::milliseconds(300);
+			const auto bytes = ReadBytes(dir / L"Vitals.prev.jsonl", 32u << 20);
+			if (bytes.empty())
+				return;
+			std::vector<std::string> lines;
+			{
+				std::string_view all(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+				for (std::size_t at = 0; at < all.size();) {
+					auto end = all.find('\n', at);
+					if (end == std::string_view::npos)
+						end = all.size();
+					auto line = all.substr(at, end - at);
+					if (!line.empty() && line.back() == '\r')
+						line.remove_suffix(1);
+					lines.emplace_back(line);
+					at = end + 1;
+				}
+			}
+			const auto prev = Lch::Parse(lines, [&] { return now() > parseUntil; });
+			if (!prev.valid)
+				return;
+			std::optional<Lch::CrashLog> crash;
+			if (const auto start = Lch::ParseIsoUtc(prev.startTime)) {
+				const auto                                    listUntil = now() + std::chrono::seconds(1);
+				std::vector<std::pair<std::string, std::int64_t>> found;
+				std::error_code                               ec;
+				std::size_t                                   seen = 0;
+				for (const auto& e : ListDir(dir.parent_path(), 5000)) {
+					if (++seen % 64 == 0 && now() > listUntil)
+						break;
+					const auto name = Narrow(e.path().filename().wstring());
+					const auto low = Lower(name);
+					if (!low.starts_with("crash") || !low.ends_with(".log") || !e.is_regular_file(ec))
+						continue;
+					if (const auto t = FileTimeToSys(std::filesystem::last_write_time(e.path(), ec)); t && !ec)
+						found.emplace_back(name, static_cast<std::int64_t>(t->time_since_epoch().count()));
+				}
+				crash = Lch::CrashLogAfter(*start, found);
+			}
+			g_recap = Lch::Recap(prev, crash);
+
+			Lch::Snapshot cur;
+			const auto& env = CurrentEnvironment();
+			cur.valid = true;
+			cur.hasEnvironment = env.recorded;
+			cur.game = env.game;
+			cur.f4se = env.f4se;
+			for (const auto& d : env.dlls)
+				cur.dlls.push_back({ d.file, d.sha256, d.pluginVersion.empty() ? d.fileVersion : d.pluginVersion });
+			cur.activePlugins = g_activePlugins;
+			g_changes = Lch::Changes(prev, cur);
+		}
+
 		void WriteReport()
 		{
 			std::ofstream out(OutputDir() / L"Vitals-Report.txt", std::ios::trunc);
@@ -904,8 +994,15 @@ namespace Vitals
 				count("problem"), count("warning"), count("info"));
 			if (count("problem") == 0 && count("warning") == 0)
 				out << "ALL CLEAR: Vitals ran and found no problems or warnings, so no box was shown. This file is written on every launch.\n\n";
+			if (!g_recap.empty())
+				out << Redact(g_recap) << "\n\n";
 			for (const auto& i : g_info)
 				out << "  " << Redact(i) << "\n";
+			if (!g_changes.empty()) {
+				out << "\nCHANGED SINCE LAST LAUNCH\n";
+				for (const auto& c : g_changes)
+					out << "  - " << Redact(c) << "\n";
+			}
 			for (const char* sev : { "problem", "warning", "info" }) {
 				bool header = false;
 				for (const auto& i : g_issues) {
@@ -1200,6 +1297,7 @@ namespace Vitals
 		step("load order", [] { CheckLoadOrder(); });
 		step("known file", [&] { CheckFileRules(rules); });
 		step("loose file", [] { CheckLooseFileSetup(); });
+		step("last launch", [] { CompareWithLastLaunch(); });
 		std::size_t problems = 0, warnings = 0;
 		for (const auto& i : g_issues) {
 			Json j;
@@ -1213,13 +1311,25 @@ namespace Vitals
 			warnings += i.severity == "warning";
 		}
 		const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
-		Emit("doctor", Json().UNum("rules", rules.size()).UNum("problems", problems).UNum("warnings", warnings).UNum("issues", g_issues.size())
-			.UNum("ms", static_cast<std::uint64_t>(ms)));
+		Json doctor;
+		doctor.UNum("rules", rules.size()).UNum("problems", problems).UNum("warnings", warnings).UNum("issues", g_issues.size());
+		if (g_activePlugins)
+			doctor.UNum("plugins_active", *g_activePlugins);  // the next launch compares it with its own count
+		doctor.UNum("ms", static_cast<std::uint64_t>(ms));
+		Emit("doctor", std::move(doctor));
 		Summary(std::format("Doctor: {} problem(s), {} warning(s), {} rules loaded. See Vitals-Report.txt", problems, warnings, rules.size()));
 		Guarded("doctor_report", WriteReport);
 		// The share pack is written on its own thread while the box is open: pressing "Stop game" ends the process.
 		Guarded("share_pack", [] { WriteSharePack("start"); });
 		Guarded("doctor_popup", MaybePopup);
+	}
+
+	std::optional<std::string> PatchOwner(std::string_view a_function)
+	{
+		std::scoped_lock l(g_lock);
+		return Rules::Launch::PatchOwner(g_owners, a_function, [](const std::string& a_dll) {
+			return REX::W32::GetModuleHandleW(Widen(a_dll).c_str()) != nullptr;
+		});
 	}
 
 	void DoctorAddressNote(std::string_view a_line)

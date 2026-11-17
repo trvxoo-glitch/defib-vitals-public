@@ -234,6 +234,14 @@ namespace Vitals
 		std::size_t checked = 0, unresolved = 0, unreadable = 0, matched = 0, noBaseline = 0, hooked = 0, differs = 0, localUsed = 0, gameStubs = 0, patched = 0, partial = 0, malformed = 0;
 		std::map<std::string, std::size_t> hooksByModule;
 		std::error_code ec;
+		// Functions whose bytes differ from the baseline without a jump into a mod; each with the running DLL that normally patches it, if known.
+		std::vector<std::pair<std::string, std::optional<std::string>>> changedFns;
+		auto NoteChanged = [&](const std::string& a_name, Json& a_j) {
+			auto owner = PatchOwner(a_name);
+			if (owner)
+				a_j.Str("normally_patched_by", *owner);
+			changedFns.emplace_back(a_name, std::move(owner));
+		};
 		for (const auto& entry : ListDir(dir)) {
 			if (entry.path().extension() != L".txt")
 				continue;
@@ -390,12 +398,14 @@ namespace Vitals
 					if (!stub.empty()) {
 						// Switched off in place: the function now returns at once (a fix mod's patch). No owner in the bytes.
 						j.Str("result", "patched_in_place").Str("expected", expected).Str("stub", stub);
+						NoteChanged(name, j);
 						++patched;
 						break;
 					}
 					// Patched in place, redirected inside the game, or a wrong address. Informational; it matters only if a
 					// port uses this ID.
 					j.Str("result", "differs").Str("expected", expected).UNum("bytes_different", diffCount);
+					NoteChanged(name, j);
 					if (jump)
 						j.Str("jump_target", std::format("0x{:X}", jump)).Str("hooked_by", jumpOwner).Str("owner_category", owner.category);
 					++differs;
@@ -436,6 +446,28 @@ namespace Vitals
 			malformed ? std::format(", {} list lines with an expected value that is not hex (fix the list)", malformed) : ""s);
 		Summary(addrLine);
 		DoctorAddressNote(addrLine);
+		if (!changedFns.empty()) {
+			// "Normally patched by": a DLL that is running and that the knowledge rules list as the usual patcher of that function.
+			// It is a likely explanation, not proof: the bytes alone do not say who changed them.
+			std::map<std::string, std::vector<std::string>> byOwner;
+			std::size_t                                     unknown = 0;
+			for (const auto& [fn, owner] : changedFns) {
+				if (owner)
+					byOwner[*owner].push_back(fn);
+				else
+					++unknown;
+			}
+			for (const auto& [dll, fns] : byOwner) {
+				std::string list;
+				for (std::size_t i = 0; i < fns.size() && i < 3; ++i)
+					list += (i ? ", " : "") + fns[i];
+				if (fns.size() > 3)
+					list += std::format(" and {} more", fns.size() - 3);
+				DoctorAddressNote(std::format("{} function{} that differ{} from the expected bytes {} normally patched by {}, which is running: {}", fns.size(), fns.size() == 1 ? "" : "s", fns.size() == 1 ? "s" : "", fns.size() == 1 ? "is" : "are", dll, list));
+			}
+			if (!byOwner.empty() && unknown)
+				DoctorAddressNote(std::format("{} other changed function{} {} no known owner.", unknown, unknown == 1 ? "" : "s", unknown == 1 ? "has" : "have"));
+		}
 		if (!hooksByModule.empty()) {
 			std::vector<std::pair<std::string, std::size_t>> v(hooksByModule.begin(), hooksByModule.end());
 			std::ranges::sort(v, [](auto& a, auto& b) { return a.second > b.second; });

@@ -421,10 +421,41 @@ def check_loose_setup(game, my_games):
 
 
 # ------------------------------------------------------------------ knowledge rules
+def generated_date(lines):
+    """'# Generated: 2026-11-17' (or 'Generated on') in a comment line near the top of a rules file; same as Rules::Launch::GeneratedDate."""
+    for ln in lines[:40]:
+        ln = ln.strip()
+        if not ln or ln[0] not in "#;":
+            continue
+        ln = ln[1:].strip()
+        if not ln.lower().startswith("generated"):
+            continue
+        m = re.search(r"\d", ln[9:])
+        if not m or m.start() > 6:
+            continue
+        d = ln[9 + m.start():9 + m.start() + 10]
+        if re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])", d):
+            return d
+    return None
+
+
+def rule_file_order(paths):
+    """Rule files in the order Vitals reads them: no date first (name order), then dated, newest first (Rules::Launch::RuleFileOrder)."""
+    info = []
+    for p in paths:
+        with open(p, encoding="utf-8", errors="replace") as f:
+            info.append((os.path.basename(p), p, generated_date(f.read().splitlines())))
+    info.sort(key=lambda t: t[0])  # name order first; the stable sort below keeps it for equal dates
+    undated = [t for t in info if t[2] is None]
+    dated = sorted((t for t in info if t[2] is not None), key=lambda t: t[2], reverse=True)  # reverse=True keeps equal keys in order
+    return [t[1] for t in undated + dated]
+
+
 def load_rules(paths):
-    """Rules from every file; the same rule (kind, match, extra) in two files is used once, as in game."""
+    """Rules from every file; the same rule (kind, match, extra) in two files is used once, as in game.
+    The file read first wins: files without a "# Generated:" date, then dated ones, newest first."""
     rules, seen = [], set()
-    for p in sorted(paths):
+    for p in rule_file_order(paths):
         for ln in open(p, encoding="utf-8", errors="replace"):
             ln = ln.strip()
             if not ln or ln[0] in "#;":
@@ -437,6 +468,17 @@ def load_rules(paths):
                 rules.append({"kind": kind.strip(), "eras": {e.strip().upper() for e in eras.split(",") if e.strip()} if _ else None,
                               "match": f[1], "extra": f[2], "severity": f[3].lower(), "message": " | ".join(f[4:])})
     return rules
+
+
+def packed_version_text(packed):
+    """F4SE's packed version as Vitals writes it: major<<24 | minor<<16 | build<<4 | sub (Rules::Launch::PackedVersionText)."""
+    return f"{(packed >> 24) & 0xFF}.{(packed >> 16) & 0xFF}.{(packed >> 4) & 0xFFF}.{packed & 0xF}"
+
+
+def dll_build_matches(rule_version, plugin_version):
+    """Rules::Launch::DllBuildMatches: every part of the rule's version equals the DLL's; a shorter rule matches all sub-builds."""
+    want, have = [x.strip() for x in rule_version.split(".")], [x.strip() for x in plugin_version.split(".")]
+    return 0 < len(want) <= len(have) and len(want) <= 4 and all(w and w == h for w, h in zip(want, have))
 
 
 def enb_installed(game):
@@ -474,6 +516,16 @@ def check_rules(game, rules, runtime, dll_issues):
             p = find_ci(plugins, r["match"])
             if p and (r["extra"] != "refused" or r["match"].lower() in refused):
                 out.append(issue(r["severity"], "known_issue", r["match"], r["message"]))
+        elif k == "dllbuild":
+            # one build of a DLL: its own plugin version (F4SEPlugin_Version), only for a DLL predicted to run
+            p = find_ci(plugins, r["match"])
+            if p and r["match"].lower() not in refused:
+                try:
+                    vd = f4se_dll_scan.scan_file(p).get("versionData")
+                except Exception:  # unreadable: no rule
+                    vd = None
+                if vd and dll_build_matches(r["extra"], packed_version_text(vd["pluginVersion"])):
+                    out.append(issue(r["severity"], "known_issue", r["match"], r["message"]))
         elif k == "conflict":
             if exists(game, r["match"], runtime) and exists(game, r["extra"], runtime):
                 out.append(issue(r["severity"], "conflict", f"{r['match']} + {r['extra']}", r["message"]))

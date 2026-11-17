@@ -2,6 +2,7 @@
 //   g++ -std=c++20 -I include tests/cpp/rules_test.cpp -o rules_test && ./rules_test tests/loader_cases.txt
 // CI runs it (build.yml, analyzer job) and tests/test_tools.py runs it when a compiler is installed.
 #include "Vitals/Formats.h"
+#include "Vitals/Launch.h"
 #include "Vitals/ModManagers.h"
 #include "Vitals/Rules.h"
 #include "Vitals/Scrub.h"
@@ -679,6 +680,133 @@ static void ModManagerTests()
 	CHECK(M::VortexStateMods("").empty());
 }
 
+// ---- Launch.h: last-launch recap, changes since the last launch, rule-file order, owners, DLL builds
+static std::vector<std::string> Lines(std::initializer_list<const char*> a_list)
+{
+	return { a_list.begin(), a_list.end() };
+}
+
+static Launch::Snapshot Snap(std::initializer_list<const char*> a_lines)
+{
+	return Launch::Parse(Lines(a_lines), [] { return false; });
+}
+
+static void LaunchTests()
+{
+	// Field reads strings (with escapes), numbers and booleans; a key inside a string value is not a field.
+	CHECK(Launch::Field(R"({"a":"x\"y","b":12,"c":true})", "a") == "x\"y");
+	CHECK(Launch::Field(R"({"a":"x\"y","b":12,"c":true})", "b") == "12");
+	CHECK(Launch::Field(R"({"a":"x\"y","b":12,"c":true})", "c") == "true");
+	CHECK(!Launch::Field(R"({"a":"x","b":1})", "z"));
+	CHECK(!Launch::Field(R"({"a":"cut off)", "a"));
+	CHECK(!Launch::Field(R"({"m":"has \"file\":\"q\" inside"})", "file"));
+
+	CHECK(Launch::ParseIsoUtc("2026-11-16T14:27:03.123Z") == 1794839223);
+	CHECK(Launch::ParseIsoUtc("1970-01-01T00:00:00Z") == 0);
+	CHECK(!Launch::ParseIsoUtc("2026-13-01T00:00:00Z") && !Launch::ParseIsoUtc("junk") && !Launch::ParseIsoUtc(""));
+
+	const auto prev = Snap({
+		R"({"t":"2026-11-16T14:27:03.100Z","kind":"start","vitals_version":"0.4.1"})",
+		R"({"t":"2026-11-16T14:27:04.000Z","kind":"environment","game_version":"1.11.240.0","f4se_version":"0.7.9.0"})",
+		R"({"t":"x","kind":"plugin","file":"A.dll","size":1,"sha256":"aa","file_version":"1.0.0.0","in_process":true,"plugin_version":"1.0.0.0"})",
+		R"({"t":"x","kind":"plugin","file":"B.dll","size":1,"sha256":"bb","file_version":"2.0.0.0","in_process":false})",
+		R"({"t":"x","kind":"plugin","file":"Gone.dll","size":1,"sha256":"cc","file_version":"","in_process":false})",
+		R"({"t":"x","kind":"doctor","rules":5,"problems":0,"warnings":1,"issues":1,"plugins_active":700,"ms":900})",
+		R"({"t":"x","kind":"phase","event":"PostPostLoad","ms_since_vitals_load":"1000"})",
+		R"({"t":"x","kind":"phase","event":"GameDataReady","ms_since_vitals_load":"97400"})",
+		R"({"t":"x","kind":"phase","event":"PostLoadGame","ms_since_vitals_load":"158000"})",
+		R"({"t":"x","kind":"plugin","file":"Cut.dll","sha25)",  // the game ended while this line was written
+		"not json at all",
+	});
+	CHECK(prev.valid && prev.hasEnvironment && prev.dlls.size() == 3 && prev.activePlugins == 700 && prev.phases.size() == 3);
+	CHECK(prev.dlls[0].version == "1.0.0.0" && prev.game == "1.11.240.0");
+
+	// Recap: only what the records show.
+	auto recap = Launch::Recap(prev, std::nullopt);
+	CHECK(recap == "Last launch (2026-11-16 14:27 UTC): game data was ready (the main menu) after 97 s, a save loaded after 158 s. Vitals saw no later event.");
+	CHECK(recap.find("crash") == std::string::npos);
+	const auto crash = Launch::CrashLogAfter(*Launch::ParseIsoUtc(prev.startTime), { { "crash-2026-11-10.log", 100 }, { "Crash-new.LOG", *Launch::ParseIsoUtc(prev.startTime) + 46 * 60 + 5 },
+		{ "f4se.log", *Launch::ParseIsoUtc(prev.startTime) + 60 }, { "crash-older.log", 5 } });
+	CHECK(crash && crash->name == "Crash-new.LOG" && crash->minutesAfterStart == 46);
+	CHECK(Launch::Recap(prev, crash).ends_with(" A crash log was written 46 minutes after that launch started: Crash-new.LOG."));
+	CHECK(!Launch::CrashLogAfter(1000, { { "crash-a.log", 999 }, { "crashes.txt", 5000 } }));
+	CHECK(Launch::CrashLogAfter(1000, { { "crash-a.log", 1030 } })->minutesAfterStart == 0);
+	CHECK(Launch::Recap(prev, Launch::CrashLogAfter(1000, { { "crash-a.log", 1030 } })).find("less than a minute") != std::string::npos);
+	const auto clean = Snap({ R"({"t":"2026-11-17T01:02:03Z","kind":"start"})", R"({"kind":"phase","event":"GameDataReady","ms_since_vitals_load":"80000"})",
+		R"({"kind":"phase","event":"DeleteGame","ms_since_vitals_load":"90000"})" });
+	CHECK(Launch::Recap(clean, std::nullopt) == "Last launch (2026-11-17 01:02 UTC): game data was ready (the main menu) after 80 s, the game closed normally.");
+	CHECK(Launch::Recap(Snap({ R"({"t":"2026-11-17T01:02:03Z","kind":"start"})" }), std::nullopt) == "Last launch (2026-11-17 01:02 UTC): Vitals saw no game event.");
+	CHECK(Launch::Recap(Snap({ "nothing" }), std::nullopt).empty());
+
+	// Changes: compared by hash, never by date; skipped when the earlier launch has no DLL records.
+	const auto now = Snap({
+		R"({"t":"2026-11-17T01:00:00Z","kind":"start"})",
+		R"({"kind":"environment","game_version":"1.11.240.0","f4se_version":"0.7.9.0"})",
+		R"({"kind":"plugin","file":"a.dll","sha256":"AA2","file_version":"1.1.0.0","plugin_version":"1.1.0.0"})",
+		R"({"kind":"plugin","file":"B.dll","sha256":"bb","file_version":"2.0.0.0"})",
+		R"({"kind":"plugin","file":"New.dll","sha256":"dd","file_version":"3.0.0.0"})",
+		R"({"kind":"doctor","plugins_active":703})",
+	});
+	const auto diff = Launch::Changes(prev, now);
+	CHECK(diff.size() == 5);
+	CHECK(diff[0] == "Replaced: a.dll (1.0.0.0 -> 1.1.0.0)");
+	CHECK(diff[1] == "New: New.dll 3.0.0.0");
+	CHECK(diff[2] == "Removed: Gone.dll");
+	CHECK(diff[3] == "Active plugins: 700 -> 703");
+	CHECK(diff[4] == "The game and F4SE are the same as last launch.");
+	CHECK(Launch::Changes(now, now) == Lines({ "Nothing changed since the last launch." }));
+	CHECK(Launch::Changes(Snap({ R"({"kind":"start"})" }), now).empty());  // the earlier launch recorded no DLLs
+	auto noCount = now;
+	noCount.activePlugins.reset();
+	CHECK(Launch::Changes(prev, noCount).size() == 4);  // the count line shows only when both launches have it
+	auto sameHashLaterDate = Snap({ R"({"kind":"start"})", R"({"kind":"environment","game_version":"1.11.240.0","f4se_version":"0.7.9.0"})",
+		R"({"kind":"plugin","file":"A.dll","sha256":"aa","file_version":"1.0.0.0"})", R"({"kind":"plugin","file":"B.dll","sha256":"","file_version":"2.0.0.0"})" });
+	CHECK(Launch::Changes(sameHashLaterDate, sameHashLaterDate) == Lines({ "Nothing changed since the last launch." }));
+	auto newGame = now;
+	newGame.game = "1.10.163.0";
+	CHECK(Launch::Changes(now, newGame).size() == 1 && Launch::Changes(now, newGame)[0] == "The game changed: 1.11.240.0 -> 1.10.163.0");
+	CHECK(Launch::Changes(Snap({ R"({"kind":"start"})", R"({"kind":"environment"})", R"({"kind":"plugin","file":"X.dll","sha256":"1","file_version":"1"})" }),
+			  Snap({ R"({"kind":"start"})", R"({"kind":"environment"})", R"({"kind":"plugin","file":"X.dll","sha256":"2","file_version":"1"})" }))[0] ==
+		  "Replaced: X.dll (version 1, different file)");
+	// more than 10 entries: the rest is counted
+	std::vector<std::string> many{ R"({"kind":"start"})", R"({"kind":"environment"})" };
+	for (int i = 0; i < 13; ++i)
+		many.push_back(R"({"kind":"plugin","file":"N)" + std::to_string(i) + R"(.dll","sha256":"x","file_version":"1"})");
+	const auto big = Launch::Changes(Snap({ R"({"kind":"start"})", R"({"kind":"environment"})" }), Launch::Parse(many, [] { return false; }));
+	CHECK(big.size() == 11 && big[10] == "and 3 more");
+	// out of time: parsing stops, and what was read so far is used
+	int calls = 0;
+	std::vector<std::string> longFile(200, R"({"kind":"plugin","file":"Z.dll","sha256":"x"})");
+	CHECK(Launch::Parse(longFile, [&] { return ++calls >= 2; }).dlls.size() == 127);
+
+	// Rule files: undated first (name order), then dated, newest first.
+	CHECK(Launch::GeneratedDate(Lines({ "# Vitals knowledge rules", "# Generated: 2026-11-17", "dll | a | - | info | m" })) == "2026-11-17");
+	CHECK(Launch::GeneratedDate(Lines({ "; generated on 2025-01-02 by a tool" })) == "2025-01-02");
+	CHECK(!Launch::GeneratedDate(Lines({ "# Generated by defib-census", "# on 2026-11-14", "# Generated: 2026-13-40" })));
+	CHECK(!Launch::GeneratedDate(Lines({ "dll | Generated: 2026-11-17 | - | info | m" })));  // a rule line is not a header
+	std::vector<Launch::RuleFile> files{ { "defib-census.txt", "2026-11-17", 16 }, { "defib-known.txt", std::nullopt, 6 }, { "nexus-rules.txt", "2026-12-01", 3 }, { "a-mine.txt", std::nullopt, 0 }, { "old.txt", "2026-11-17", 1 } };
+	const auto order = Launch::RuleFileOrder(files);
+	CHECK((order == std::vector<std::size_t>{ 3, 1, 2, 0, 4 }));
+	CHECK(Launch::RulesStamp(files, order) == "Knowledge rules: 6 from defib-known.txt, 3 from nexus-rules.txt (generated 2026-12-01), 16 from defib-census.txt (generated 2026-11-17), 1 from old.txt (generated 2026-11-17) (the first file listed wins when two files have the same rule)");
+	CHECK(Launch::RulesStamp({}, {}) == "Knowledge rules: none loaded");
+	CHECK(Launch::RulesStamp({ { "x.txt", std::nullopt, 2 } }, { 0 }) == "Knowledge rules: 2 from x.txt");
+
+	// Owners: named only when that DLL is running.
+	const std::vector<Launch::Owner> owners{ { "MemoryManager::", "Addictol.dll" }, { "CheckModsLoaded", "AchievementsEnablerAE.dll" }, { "GetEncounterZone", "encounter_zone_recalculation.dll" } };
+	auto running = [](const std::string& d) { return d == "addictol.dll" || d == "Addictol.dll"; };
+	CHECK(Launch::PatchOwner(owners, "MemoryManager::AutoScrapBuffer::ctor", running) == "Addictol.dll");
+	CHECK(Launch::PatchOwner(owners, "memorymanager::scrapheap::x", running) == "Addictol.dll");
+	CHECK(!Launch::PatchOwner(owners, "TESObjectREFR::GetEncounterZone", running));  // its DLL is not running: no name is given
+	CHECK(!Launch::PatchOwner(owners, "Papyrus::Something", running));
+
+	// One build of a DLL (rule kind dllbuild).
+	CHECK(Launch::PackedVersionText((0u << 24) | (0u << 16) | (4u << 4) | 13u) == "0.0.4.13");
+	CHECK(Launch::DllBuildMatches("0.0.4.13", "0.0.4.13") && !Launch::DllBuildMatches("0.0.4.13", "0.0.4.12"));
+	CHECK(Launch::DllBuildMatches("0.0.4", "0.0.4.13") && !Launch::DllBuildMatches("0.0.4", "0.0.5.0"));
+	CHECK(!Launch::DllBuildMatches("", "1.0.0.0") && !Launch::DllBuildMatches("1.0.0.0.1", "1.0.0.0") && !Launch::DllBuildMatches("1..", "1.0.0.0"));
+	CHECK(!Launch::DllBuildMatches("0.0.4.13", ""));
+}
+
 int main(int argc, char** argv)
 {
 	TextTests();
@@ -696,6 +824,7 @@ int main(int argc, char** argv)
 	ShareTests();
 	RuntimeTagTests();
 	ModManagerTests();
+	LaunchTests();
 	const int loader = argc > 1 ? RunLoaderCases(argv[1]) : 0;
 	// tests/scrub_cases.txt sits next to tests/loader_cases.txt
 	int scrub = 0;
