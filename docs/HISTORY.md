@@ -26,7 +26,7 @@ workbench") was about building it and proving it right on two game builds.
 | 0.3.2 | 2026-11-15 | The start-up box shows on every launch until the player presses Don't show; Continue no longer hides it |
 | Nexus | 2026-11-15 | Released on Nexus Mods. First player report: works on Next-Gen 1.10.984 (36 of 43 plugins running, 772-plugin load order) |
 | 0.4.0 | 2026-11-15 | Opt-in share pack with a tested scrubber (sent by the player through a private Discord channel), Copy report button, knowledge rules limited to game versions, and evidence from the mod manager (which mod installed a DLL, other installed copies, Vortex's and MO2's own update check). Three more outside code reviews of this build fixed a possible start-up stall, the wrong MO2 instance, privacy gaps (save and character names) and a share pack that was never written when the player pressed Stop game |
-| 0.4.2 | 2026-11-16 | Report layout: a not-running DLL's details (build date, File version, Installed by) go on their own indented line under the reason |
+| 0.4.2 | 2026-11-16 | Report layout: a not-running DLL's details (build date, File version, Installed by) go on their own indented line under the reason; share-pack scrubber keeps shortening paths whose folder names hold an apostrophe, brackets or a version number; image scan reads through SafeRead |
 | 0.4.1 | 2026-11-16 | Report starts with ALL CLEAR when nothing is wrong (after Nexus comments from players who saw no box and could not tell Vitals had run); the download is split into the main file and an optional Extra Docs file |
 
 ## What Stage 0 found (lessons worth keeping)

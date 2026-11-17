@@ -56,6 +56,38 @@ def make_session(tmp, vitals_in_process=("Vitals.dll",)):
     open(os.path.join(tmp, "Logs", "Script", "Papyrus.0.log"), "w").write("[11/11/2026 - 01:00:00AM] error: Cannot call X() on a None object\n")
 
 
+class BreadcrumbReaderTests(unittest.TestCase):
+    """defib_logs.parse_breadcrumbs rejects the files Share::BreadcrumbsText (C++) rejects: a header it cannot trust is
+    "no breadcrumbs", never a loop over a made-up capacity (entry size 0 used to run ~4 billion times)."""
+
+    def _file(self, cap, esize, size=None, magic=b"VTLB"):
+        n = 64 + cap * esize if size is None else size
+        buf = bytearray(max(n, 64))
+        buf[0:4] = magic
+        struct.pack_into("<IIIQ", buf, 4, 1, cap, esize, 3)
+        if n >= 64 + 128:
+            struct.pack_into("<QqII", buf, 64, 7, 0, 42, 0)
+            buf[88:94] = b"MyPort"
+            buf[128:132] = b"hook"
+        fd, path = tempfile.mkstemp(suffix=".bin")
+        with os.fdopen(fd, "wb") as f:
+            f.write(bytes(buf[:n]))
+        self.addCleanup(os.remove, path)
+        return path
+
+    def test_valid_file_still_reads(self):
+        bc = defib_logs.parse_breadcrumbs(self._file(4, 128))
+        self.assertEqual([(e[2], e[3]) for e in bc["entries"]], [("MyPort", "hook")])
+
+    def test_unexpected_layouts_are_not_breadcrumbs(self):
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(200_000_000, 0, size=192)))  # entry size 0: the old hang
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(4, 64)))                    # another entry size
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(65537, 128, size=64 + 4 * 128)))  # capacity over the limit
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(0, 128, size=192)))         # no entries
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(8, 128, size=64 + 4 * 128)))  # truncated: 8 entries claimed, 4 present
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(4, 128, magic=b"NOPE")))
+
+
 class AnalyzerTests(unittest.TestCase):
     def test_agree(self):
         with tempfile.TemporaryDirectory() as tmp:

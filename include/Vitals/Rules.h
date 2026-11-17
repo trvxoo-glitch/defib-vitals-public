@@ -401,6 +401,36 @@ namespace Vitals::Rules
 		return false;
 	}
 
+	// ---------------------------------------------------------------- searching a loaded image
+	// Looks for a_needle (ASCII, any case) in an image of a_size bytes, one a_page at a time. a_read(offset, out, len) copies
+	// bytes out of the image and returns false when it cannot; the search only ever looks at the copy, so a page that is
+	// freed or re-protected while it runs fails a read instead of faulting. Each read takes needle-1 bytes of the next page,
+	// so a match across a page boundary is found; if that longer read fails the page is read alone, and a page that cannot
+	// be read is skipped without hiding the pages around it.
+	template <class Read>
+	inline bool SearchPaged(std::size_t a_size, std::string_view a_needle, Read&& a_read, std::size_t a_page = 4096)
+	{
+		if (a_needle.empty() || a_page == 0 || a_size < a_needle.size())
+			return false;
+		auto fold = [](unsigned char c) { return static_cast<unsigned char>(c >= 'A' && c <= 'Z' ? c + 32 : c); };
+		std::vector<std::uint8_t> buf;
+		for (std::size_t at = 0; at < a_size; at += a_page) {
+			auto len = std::min<std::size_t>(a_page + a_needle.size() - 1, a_size - at);
+			buf.resize(len);
+			if (!a_read(at, buf.data(), len)) {
+				len = std::min<std::size_t>(a_page, a_size - at);
+				buf.resize(len);
+				if (!a_read(at, buf.data(), len))
+					continue;
+			}
+			const auto hit = std::search(buf.begin(), buf.end(), a_needle.begin(), a_needle.end(),
+				[&](std::uint8_t a, char b) { return fold(a) == fold(static_cast<unsigned char>(b)); });
+			if (hit != buf.end())
+				return true;
+		}
+		return false;
+	}
+
 	// ---------------------------------------------------------------- load order
 	// The order the game really loads plugins in: the implicit files (Fallout4.esm, the DLCs, Fallout4.ccc) first, then
 	// every master-flagged plugin (ESM flag, .esm, .esl) in plugins.txt order, then every other plugin in plugins.txt

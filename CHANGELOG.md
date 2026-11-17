@@ -3,11 +3,18 @@
 All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed. Dates are
 2026. Newest first: 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
 
-## 0.4.2 (2026-11-16: report layout)
+## 0.4.2 (2026-11-16: report layout, share-pack scrubber and image-scan fixes)
 Not yet tested in game.
 * **Changed:** in `Vitals-Report.txt`, a not-running DLL's finding now puts the reason on the first line and the details
   (when it was built, File version, Installed by, other copies) on a second indented line, so the reason reads first.
-  Nothing else changed.
+* **Fixed (share pack):** a folder path was left whole in `Vitals-Share.zip` instead of being cut to its last two names when
+  a folder name held an apostrophe (`Robin's Mods`), a bracket group (`Program Files (x86)`, `Mods [Vortex]`) or a version
+  number followed by a space (`Fallout 4 v1.10.163 Old`). Such paths are now shortened like any other.
+* **Fixed (crash safety):** the check that looks inside running F4SE DLLs for a text a rule names (used while
+  `f4rd-runtime.bin` is missing) now reads each page through the same checked copy as every other read of game memory,
+  instead of reading the page directly after checking it. A DLL that changed its own memory at that moment could crash the game.
+* **Fixed (tools):** `tools\defib_logs.py` treats a `breadcrumbs.bin` with an unexpected layout as "no breadcrumbs", the
+  way the plugin does, instead of looping or reading garbage.
 
 ## 0.4.1 (2026-11-16: ALL CLEAR line, smaller download)
 Tested in game 2026-11-16: 1.11.240 with A StoryWealth through Vortex (a 47-minute session with a save loaded and saved,

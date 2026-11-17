@@ -78,19 +78,12 @@ namespace Vitals
 			if (!base || a_needle.empty() || !SafeRead(base + 0x3C, &lfanew, 4) || lfanew <= 0 || lfanew > 0x1000 ||
 				!SafeRead(base + lfanew + 24 + 56, &sizeOfImage, 4) || sizeOfImage > (512u << 20))
 				return false;
-			auto eq = [](std::uint8_t a, char b) { return std::tolower(a) == std::tolower(static_cast<unsigned char>(b)); };
-			// page by page: one unreadable page (a discarded section) must not hide the readable ones around it
-			constexpr std::size_t kPage = 4096;
-			for (std::size_t at = 0; at < sizeOfImage; at += kPage) {
-				auto len = std::min<std::size_t>(kPage + a_needle.size() - 1, sizeOfImage - at);  // overlap: a match may cross a page
-				if (!IsReadable(base + at, len))
-					len = std::min<std::size_t>(kPage, sizeOfImage - at);
-				if (!IsReadable(base + at, len))
-					continue;
-				if (std::search(base + at, base + at + len, a_needle.begin(), a_needle.end(), eq) != base + at + len)
-					return true;
-			}
-			return false;
+			// Page by page, through SafeRead into a copy: the search never touches the image itself, so a page freed or
+			// re-protected by another plugin while this runs fails a read instead of faulting (Guarded cannot catch that).
+			// One unreadable page (a discarded section) does not hide the readable ones around it.
+			return Rules::SearchPaged(sizeOfImage, a_needle, [base](std::size_t a_off, std::uint8_t* a_out, std::size_t a_len) {
+				return SafeRead(base + a_off, a_out, a_len);
+			});
 		}
 
 		std::string VersionText(std::uint32_t a_packed)

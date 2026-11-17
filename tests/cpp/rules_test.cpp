@@ -371,6 +371,62 @@ static void PlayerTextTests()
 	CHECK(RedactUserFolder("\"C:\\Rob\" and C:\\Rob;", "Rob") == "\"C:\\<user>\" and C:\\<user>;");
 }
 
+// V-003: the image search never touches memory itself; it asks a reader that can fail (a page freed or re-protected mid-scan)
+static void ImageSearchTests()
+{
+	std::string img(3 * 4096 + 100, 'x');
+	auto        put = [&](std::size_t at, std::string_view s) { img.replace(at, s.size(), s); };
+	std::set<std::size_t> bad;  // page numbers whose read fails
+	std::size_t           reads = 0;
+	auto read = [&](std::size_t a_off, std::uint8_t* a_out, std::size_t a_len) {
+		++reads;
+		for (std::size_t p = a_off / 4096; p <= (a_off + a_len - 1) / 4096; ++p)
+			if (bad.count(p))
+				return false;
+		std::memcpy(a_out, img.data() + a_off, a_len);
+		return true;
+	};
+	CHECK(!SearchPaged(img.size(), "f4rd-runtime", read));
+	put(5000, "F4RD-Runtime");  // any case, inside page 1
+	CHECK(SearchPaged(img.size(), "f4rd-runtime", read));
+	img.assign(img.size(), 'x');
+	put(4096 - 5, "f4rd-runtime");  // across the page 0 / page 1 boundary
+	CHECK(SearchPaged(img.size(), "f4rd-runtime", read));
+	// a page that cannot be read is skipped; the others are still searched
+	img.assign(img.size(), 'x');
+	put(2 * 4096 + 10, "needle");
+	bad = { 1 };
+	CHECK(SearchPaged(img.size(), "needle", read));
+	// a needle only in an unreadable page is not found, and nothing is read past what the reader allowed
+	bad = { 2 };
+	CHECK(!SearchPaged(img.size(), "needle", read));
+	// the boundary case with the next page unreadable: the first page is read alone and its own bytes still match
+	img.assign(img.size(), 'x');
+	put(100, "needle");
+	bad = { 1 };
+	CHECK(SearchPaged(img.size(), "needle", read));
+	// every read fails: not found, no crash
+	bad = { 0, 1, 2, 3 };
+	CHECK(!SearchPaged(img.size(), "needle", read));
+	bad.clear();
+	// degenerate input
+	CHECK(!SearchPaged(0, "needle", read));
+	CHECK(!SearchPaged(3, "needle", read));
+	CHECK(!SearchPaged(img.size(), "", read));
+	reads = 0;
+	CHECK(!SearchPaged(img.size(), "needle", read, 0) && reads == 0);
+	// the tail page is shorter than a page: no read beyond the image
+	img.assign(100, 'x');
+	put(94, "needle");
+	std::size_t maxEnd = 0;
+	auto        tail = [&](std::size_t a_off, std::uint8_t* a_out, std::size_t a_len) {
+        maxEnd = std::max(maxEnd, a_off + a_len);
+        std::memcpy(a_out, img.data() + a_off, a_len);
+        return true;
+	};
+	CHECK(SearchPaged(img.size(), "needle", tail) && maxEnd <= img.size());
+}
+
 static void LoadOrderTests()
 {
 	// implicit: Fallout4.esm; then plugins.txt: a.esp, flagged.esp (ESM flag), b.esm, c.esp
@@ -634,6 +690,7 @@ int main(int argc, char** argv)
 	KeyFileTests();
 	PlayerTextTests();
 	LoadOrderTests();
+	ImageSearchTests();
 	ScrubTests();
 	ZipTests();
 	ShareTests();

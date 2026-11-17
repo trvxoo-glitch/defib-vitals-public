@@ -117,6 +117,34 @@ text: D:\A\B\C.txt; see https://www.nexusmods.com/fallout4/mods/111452
 want: <path>\B\C.txt; see https://www.nexusmods.com/fallout4/mods/111452
 text: copy F:\x\y\z.dll to G:\p\q\r.dll
 want: copy <path>\y\z.dll to <path>\q\r.dll
+# a folder name with an apostrophe or a bracket group does not end the path (it used to leave the whole path in the pack)
+text: plugin E:\Robin's Mods\staging\Foo\x.dll loaded
+want: plugin <path>\Foo\x.dll loaded
+text: plugin E:\Robin Mods [Vortex]\staging\Foo\x.dll loaded
+want: plugin <path>\Foo\x.dll loaded
+text: C:\Program Files (x86)\Robin Mods\Vortex\x.dll
+want: <path>\Vortex\x.dll
+text: H:\Games {old}\Robin Mods\y\x.dll ok
+want: <path>\y\x.dll ok
+# a version number in a folder name ("v1.2", "1.10.163") is not a file extension: the path goes on to its last two names
+text: loading D:\Robin Games\Fallout 4 v1.10.163 Old\Data\x.dll now
+want: loading <path>\Data\x.dll now
+text: D:\Robin Games\Mods v1.2 Final\x.dll
+want: <path>\Mods v1.2 Final\x.dll
+text: D:\Robin Games\Mods v1.2b Final\y\x.dll
+want: <path>\y\x.dll
+# a file name that ends in a letter extension, or 7z, still ends the path at the space
+text: D:\Robin Games\Mods\Foo.dll was loaded
+want: <path>\Mods\Foo.dll was loaded
+text: got D:\a\b\x.7z was loaded
+want: got <path>\b\x.7z was loaded
+# a quote or a bracket group around a path still ends it
+text: see (D:\a\b.dll) ok
+want: see (<path>\a\b.dll) ok
+text: paths 'D:\a\b' and 'x'
+want: paths '<path>\a\b' and 'x'
+text: opened D:\a\b (loaded) at D:\c\d
+want: opened <path>\a\b (loaded) at <path>\c\d
 
 # crash logs: quoted text from memory (a save path names the character, so paths with spaces go too)
 crash: 	RAX 0x1F (char*) "Hello Robin"
