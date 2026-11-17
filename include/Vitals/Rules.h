@@ -401,6 +401,27 @@ namespace Vitals::Rules
 		return false;
 	}
 
+	// ---------------------------------------------------------------- report text
+	// A not-running DLL's finding is one long sentence: why F4SE skipped it, then the details (when it was built, its file
+	// version, which mod installed it, a newer version on Nexus, other installed copies, the MO2 Overwrite paragraph). The
+	// report puts the details on their own indented line so the reason reads first. The break goes in front of the first
+	// detail sentence; a finding with none is returned as it is.
+	inline std::string BreakBeforeDetails(std::string a_message)
+	{
+		static constexpr std::string_view markers[] = { " Built (date inside the DLL)", " Its file is dated", " It was made with a linker", " File version ",
+			" Installed by the ", " Vortex says a newer version", " MO2 says a newer version", " The game is not loading the copy" };
+		std::size_t at = std::string::npos;
+		for (const auto m : markers)
+			at = std::min(at, a_message.find(m));
+		// "2 other installed mods have a working copy: ..." starts one word earlier, at the number
+		if (const auto other = a_message.find(" other installed mod"); other != std::string::npos && other > 0)
+			if (const auto space = a_message.rfind(' ', other - 1); space != std::string::npos)
+				at = std::min(at, space);
+		if (at != std::string::npos && at > 0)
+			a_message.replace(at, 1, "\n    ");
+		return a_message;
+	}
+
 	// ---------------------------------------------------------------- searching a loaded image
 	// Looks for a_needle (ASCII, any case) in an image of a_size bytes, one a_page at a time. a_read(offset, out, len) copies
 	// bytes out of the image and returns false when it cannot; the search only ever looks at the copy, so a page that is

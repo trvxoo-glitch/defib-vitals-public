@@ -79,9 +79,13 @@ namespace Vitals
 		{
 			const auto base = reinterpret_cast<const std::uint8_t*>(a_module);
 			std::int32_t  lfanew = 0;
-			std::uint32_t sizeOfImage = 0;
+			std::uint32_t signature = 0, sizeOfImage = 0;
+			std::uint16_t magic = 0;
+			// A header that is not a 64-bit PE ("PE\0\0", magic 0x20B) or claims more than a real plugin (128 MB is generous)
+			// skips this DLL: a torn header must not turn one DLL into a scan of half a gigabyte before the box.
 			if (!base || a_needle.empty() || !SafeRead(base + 0x3C, &lfanew, 4) || lfanew <= 0 || lfanew > 0x1000 ||
-				!SafeRead(base + lfanew + 24 + 56, &sizeOfImage, 4) || sizeOfImage > (512u << 20))
+				!SafeRead(base + lfanew, &signature, 4) || signature != 0x00004550 || !SafeRead(base + lfanew + 24, &magic, 2) || magic != 0x20B ||
+				!SafeRead(base + lfanew + 24 + 56, &sizeOfImage, 4) || sizeOfImage > (128u << 20))
 				return false;
 			// Page by page, through SafeRead into a copy: the search never touches the image itself, so a page freed or
 			// re-protected by another plugin while this runs fails a read instead of faulting (Guarded cannot catch that).
@@ -909,19 +913,6 @@ namespace Vitals
 		// ---------------- output ----------------
 		std::string ReportPathText() { return Redact(Narrow((OutputDir() / L"Vitals-Report.txt").wstring())); }
 
-		// A not-running DLL's finding is one long sentence: why F4SE skipped it, then when it was built, its file version and
-		// the mod manager's record. The details go on their own line (indented like "What to do:") so the reason reads first.
-		std::string BreakBeforeDetails(std::string a_message)
-		{
-			static constexpr std::string_view markers[] = { " Built (date inside the DLL)", " Its file is dated", " It was made with a linker", " File version " };
-			std::size_t at = std::string::npos;
-			for (const auto m : markers)
-				at = std::min(at, a_message.find(m));
-			if (at != std::string::npos && at > 0)
-				a_message.replace(at, 1, "\n    ");
-			return a_message;
-		}
-
 		// Last launch: the recap, a crash log written after it started, and what changed since. Reads only the earlier
 		// launch's Vitals.jsonl (32 MB at most) and the names of crash*.log files; 300 ms for the file, 1 s for the folder.
 		void CompareWithLastLaunch()
@@ -1012,7 +1003,7 @@ namespace Vitals
 						out << "\n" << (std::string_view(sev) == "problem" ? "PROBLEMS" : std::string_view(sev) == "warning" ? "WARNINGS" : "NOTES") << "\n";
 						header = true;
 					}
-					out << "  - " << Redact(i.category == "plugin_dll" ? BreakBeforeDetails(i.message) : i.message) << "\n";
+					out << "  - " << Redact(i.category == "plugin_dll" ? Rules::BreakBeforeDetails(i.message) : i.message) << "\n";
 					if (!i.advice.empty())
 						out << "    What to do: " << Redact(i.advice) << "\n";
 					out << "\n";  // a blank line between entries

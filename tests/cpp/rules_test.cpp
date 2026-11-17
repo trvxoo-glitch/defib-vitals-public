@@ -691,6 +691,22 @@ static Launch::Snapshot Snap(std::initializer_list<const char*> a_lines)
 	return Launch::Parse(Lines(a_lines), [] { return false; });
 }
 
+static void ReportBreakTests()
+{
+	// the break goes before the first detail sentence, whichever the DLL has
+	CHECK(BreakBeforeDetails("X.dll has no version data. Built (date inside the DLL) 2019-01-02. File version 1.0.") == "X.dll has no version data.\n    Built (date inside the DLL) 2019-01-02. File version 1.0.");
+	CHECK(BreakBeforeDetails("X.dll is not a plugin. File version 1.0.") == "X.dll is not a plugin.\n    File version 1.0.");
+	// no build sentence and no version resource: the manager's sentences still break
+	CHECK(BreakBeforeDetails("X.dll is not a plugin. Installed by the Vortex mod \"M\".") == "X.dll is not a plugin.\n    Installed by the Vortex mod \"M\".");
+	CHECK(BreakBeforeDetails("X.dll is not a plugin. Vortex says a newer version of this mod is on Nexus: 2 (you have 1).") == "X.dll is not a plugin.\n    Vortex says a newer version of this mod is on Nexus: 2 (you have 1).");
+	CHECK(BreakBeforeDetails("X.dll is not a plugin. 2 other installed mods have a working copy: A, B.") == "X.dll is not a plugin.\n    2 other installed mods have a working copy: A, B.");
+	CHECK(BreakBeforeDetails("X.dll is not a plugin. The game is not loading the copy from \"M\", your highest-priority MO2 mod with this DLL: x.") == "X.dll is not a plugin.\n    The game is not loading the copy from \"M\", your highest-priority MO2 mod with this DLL: x.");
+	// only one break, and none when there are no details
+	CHECK(BreakBeforeDetails("X.dll is not a plugin. File version 1.0. Installed by the MO2 mod \"M\".") == "X.dll is not a plugin.\n    File version 1.0. Installed by the MO2 mod \"M\".");
+	CHECK(BreakBeforeDetails("X.dll is not a plugin.") == "X.dll is not a plugin.");
+	CHECK(BreakBeforeDetails("") == "");
+}
+
 static void LaunchTests()
 {
 	// Field reads strings (with escapes), numbers and booleans; a key inside a string value is not a field.
@@ -824,6 +840,7 @@ int main(int argc, char** argv)
 	ShareTests();
 	RuntimeTagTests();
 	ModManagerTests();
+	ReportBreakTests();
 	LaunchTests();
 	const int loader = argc > 1 ? RunLoaderCases(argv[1]) : 0;
 	// tests/scrub_cases.txt sits next to tests/loader_cases.txt

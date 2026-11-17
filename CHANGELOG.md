@@ -20,6 +20,11 @@ All releases are AI Assisted (see AI_DISCLOSURE.md). Dates are 2026. Newest firs
 * **Changed (rules):** each census rule for a DLL is now limited to the game versions it was seen on or is true for
   (`dll@AE`, `dll@NG,AE`), so Old-Gen players no longer see "does not run on this game version" advice that is wrong for
   them. The old main menu `MainMenu.swf` rule now applies to Anniversary builds only.
+* **Fixed (report layout):** the details line under a not-running DLL's reason now also starts at "Installed by", a newer
+  version on Nexus, the other-copies sentence and the MO2 Overwrite paragraph, not only at the build date or file version.
+  A DLL with no version resource and no build sentence used to keep everything on one long line.
+* **Fixed (crash safety):** the in-memory search of a running DLL skips a DLL whose header is not a 64-bit PE or claims more
+  than 128 MB, instead of scanning up to 512 MB of pages on a damaged header.
 * **Fixed (share pack):** a folder path was left whole in `Vitals-Share.zip` instead of being cut to its last two names when
   a folder name held an apostrophe (`Robin's Mods`), a bracket group (`Program Files (x86)`, `Mods [Vortex]`) or a version
   number followed by a space (`Fallout 4 v1.10.163 Old`). Such paths are now shortened like any other.
