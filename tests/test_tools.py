@@ -56,6 +56,38 @@ def make_session(tmp, vitals_in_process=("Vitals.dll",)):
     open(os.path.join(tmp, "Logs", "Script", "Papyrus.0.log"), "w").write("[11/11/2026 - 01:00:00AM] error: Cannot call X() on a None object\n")
 
 
+class BreadcrumbReaderTests(unittest.TestCase):
+    """defib_logs.parse_breadcrumbs rejects the files Share::BreadcrumbsText (C++) rejects: a header it cannot trust is
+    "no breadcrumbs", never a loop over a made-up capacity (entry size 0 used to run ~4 billion times)."""
+
+    def _file(self, cap, esize, size=None, magic=b"VTLB"):
+        n = 64 + cap * esize if size is None else size
+        buf = bytearray(max(n, 64))
+        buf[0:4] = magic
+        struct.pack_into("<IIIQ", buf, 4, 1, cap, esize, 3)
+        if n >= 64 + 128:
+            struct.pack_into("<QqII", buf, 64, 7, 0, 42, 0)
+            buf[88:94] = b"MyPort"
+            buf[128:132] = b"hook"
+        fd, path = tempfile.mkstemp(suffix=".bin")
+        with os.fdopen(fd, "wb") as f:
+            f.write(bytes(buf[:n]))
+        self.addCleanup(os.remove, path)
+        return path
+
+    def test_valid_file_still_reads(self):
+        bc = defib_logs.parse_breadcrumbs(self._file(4, 128))
+        self.assertEqual([(e[2], e[3]) for e in bc["entries"]], [("MyPort", "hook")])
+
+    def test_unexpected_layouts_are_not_breadcrumbs(self):
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(200_000_000, 0, size=192)))  # entry size 0: the old hang
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(4, 64)))                    # another entry size
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(65537, 128, size=64 + 4 * 128)))  # capacity over the limit
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(0, 128, size=192)))         # no entries
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(8, 128, size=64 + 4 * 128)))  # truncated: 8 entries claimed, 4 present
+        self.assertIsNone(defib_logs.parse_breadcrumbs(self._file(4, 128, magic=b"NOPE")))
+
+
 class AnalyzerTests(unittest.TestCase):
     def test_agree(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -644,6 +676,37 @@ def _pe_with_exports(names):
     return bytes(d)
 
 
+class ExtraDocsTests(unittest.TestCase):
+    def test_extra_zip_has_index_and_no_broken_relative_links(self):
+        import re
+        import make_package
+        with tempfile.TemporaryDirectory() as tmp:
+            extra = os.path.join(tmp, "extra")
+            make_package.build_extra(extra)
+            self.assertTrue(os.path.isfile(os.path.join(extra, "README.md")))
+            files = {os.path.relpath(os.path.join(d, f), extra).replace(os.sep, "/") for d, _, fs in os.walk(extra) for f in fs}
+            for rel in sorted(f for f in files if f.endswith(".md")):
+                text = open(os.path.join(extra, rel), encoding="utf-8").read()
+                for target in re.findall(r"\]\(([^)\s]+)\)", text):
+                    if re.match(r"^[a-z][a-z0-9+.-]*:|^#", target, re.I):
+                        continue
+                    path = os.path.normpath(os.path.join(os.path.dirname(rel), target.partition("#")[0])).replace(os.sep, "/")
+                    self.assertIn(path, files, f"{rel} links to {target}, which is not in the Extra Docs zip")
+            # the index names every guide in the zip
+            index = open(os.path.join(extra, "README.md"), encoding="utf-8").read()
+            for d in make_package.EXTRA_DOCS:
+                self.assertIn(d, index)
+
+    def test_link_rewrite(self):
+        import make_package
+        present = set(make_package.EXTRA_DOCS)
+        out = make_package.link_to_github("[a](USER_GUIDE.md#x) [b](FILE_FORMATS.md) [c](https://e.x) [d](#h)", "docs/FAQ.md", present)
+        self.assertIn("(https://github.com/trvxoo-glitch/defib-vitals-public/blob/main/docs/USER_GUIDE.md#x)", out)
+        self.assertIn("[b](FILE_FORMATS.md)", out)
+        self.assertIn("[c](https://e.x)", out)
+        self.assertIn("[d](#h)", out)
+
+
 class ThirdReviewTests(unittest.TestCase):
     def test_package_refuses_dangerous_output(self):
         import make_package
@@ -725,7 +788,7 @@ class KnowledgeRulesTests(unittest.TestCase):
         self.assertIn("defib-census.txt", [os.path.basename(f) for f in files])
         rules = defib_preflight.load_rules(files)
         self.assertGreaterEqual(len(rules), 16)
-        kinds = {"dll", "needs", "conflict", "oldfile", "file"}
+        kinds = {"dll", "needs", "conflict", "oldfile", "file", "dllbuild", "patchedby"}
         for r in rules:
             self.assertIn(r["kind"], kinds, r)
             self.assertIn(r["severity"], ("problem", "warning", "info"), r)
@@ -733,6 +796,45 @@ class KnowledgeRulesTests(unittest.TestCase):
                 defib_preflight.dt.date.fromisoformat(r["extra"])
             if r["kind"] == "dll":
                 self.assertIn(r["extra"], ("refused", "-"), r)
+
+    def test_newest_generated_file_wins(self):
+        import defib_preflight
+        with tempfile.TemporaryDirectory() as tmp:
+            def write(name, header, msg):
+                p = os.path.join(tmp, name)
+                open(p, "w").write(header + f"dll | X.dll | refused | warning | {msg}\n")
+                return p
+            old = write("defib-census.txt", "# Generated: 2026-11-17\n", "census")
+            new = write("nexus-rules.txt", "# Generated on 2026-12-01\n", "nexus")
+            same = write("a-same-day.txt", "# generated: 2026-11-17\n", "sameday")
+            mine = write("zz-mine.txt", "# my own rules\n", "mine")
+            self.assertEqual(defib_preflight.generated_date(["# Generated by defib-census", "# Generated: 2026-13-40"]), None)
+            self.assertEqual(defib_preflight.generated_date(["dll | Generated: 2026-11-17 | - | info | m"]), None)
+            # no date first (name order), then newest first, equal dates in name order: the same order as Rules::RuleFileOrder
+            self.assertEqual([os.path.basename(p) for p in defib_preflight.rule_file_order([old, new, same, mine])],
+                             ["zz-mine.txt", "nexus-rules.txt", "a-same-day.txt", "defib-census.txt"])
+            self.assertEqual(defib_preflight.load_rules([old, new])[0]["message"], "nexus")
+            self.assertEqual(defib_preflight.load_rules([old, new, mine])[0]["message"], "mine")
+            self.assertEqual(defib_preflight.load_rules([old, same])[0]["message"], "sameday")
+
+    def test_dllbuild_rule_matches_one_plugin_version(self):
+        import defib_preflight
+        from unittest import mock
+        self.assertEqual(defib_preflight.packed_version_text((4 << 4) | 13), "0.0.4.13")
+        self.assertTrue(defib_preflight.dll_build_matches("0.0.4.13", "0.0.4.13"))
+        self.assertFalse(defib_preflight.dll_build_matches("0.0.4.13", "0.0.4.12"))
+        self.assertTrue(defib_preflight.dll_build_matches("0.0.4", "0.0.4.13"))
+        self.assertFalse(defib_preflight.dll_build_matches("", "1.0.0.0") or defib_preflight.dll_build_matches("1..", "1.0.0.0"))
+        with tempfile.TemporaryDirectory() as game:
+            plugins = os.path.join(game, "Data", "F4SE", "Plugins")
+            os.makedirs(plugins)
+            open(os.path.join(plugins, "Sup.dll"), "wb").write(b"MZ")
+            rules = [{"kind": "dllbuild", "eras": None, "match": "Sup.dll", "extra": "0.0.4.13", "severity": "warning", "message": "m"}]
+            with mock.patch.object(defib_preflight.f4se_dll_scan, "scan_file", return_value={"f4seExports": [], "versionData": {"pluginVersion": (4 << 4) | 13}}):
+                self.assertEqual(len(defib_preflight.check_rules(game, rules, "1.11.240", [])), 1)
+                self.assertEqual(defib_preflight.check_rules(game, rules, "1.11.240", [{"category": "plugin_dll", "subject": "Sup.dll"}]), [])  # not running
+            with mock.patch.object(defib_preflight.f4se_dll_scan, "scan_file", return_value={"f4seExports": [], "versionData": {"pluginVersion": (4 << 4) | 12}}):
+                self.assertEqual(defib_preflight.check_rules(game, rules, "1.11.240", []), [])
 
     def test_same_rule_in_two_files_is_used_once(self):
         import defib_preflight

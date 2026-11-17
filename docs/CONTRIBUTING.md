@@ -9,16 +9,18 @@ A rule teaches the doctor to recognise something that breaks setups. Format and 
 3. **A dated comment** above it saying what was seen (see the existing rules).
 4. **A plain message** that says what is wrong and what to do.
 
-Put experimental rules in your own `Vitals\knowledge\*.txt`; Vitals reads all of them and updates only replace `defib-known.txt`.
-A rule seen on one game version only names it: `oldfile@NG,AE | ...`.
+Put experimental rules in your own `Vitals\knowledge\*.txt`; Vitals reads all of them and updates only replace `defib-known.txt` and `defib-census.txt`
+(`defib-census.txt` is generated from the census repository: never edit it). When two files hold the same rule the file read first wins:
+files with no `# Generated: YYYY-MM-DD` line come first in name order, then dated files, newest first. A rule seen on one game
+version only names it: `oldfile@NG,AE | ...` or `dll@AE | ...`.
 
 ## Share your results
-If you opted in to the share pack, attach `Vitals-Share.zip` to an issue (it is already scrubbed; open it first to
-check). Maintainers count packs with `tools/share_inbox.py`: a not-running DLL seen in five or more installs with no
+If you opted in to the share pack, attach `Vitals-Share.zip` to an issue at https://github.com/trvxoo-glitch/defib-vitals-public/issues (an issue is public: it is
+already scrubbed, but open it first to check), or send it through the Discord server's **Upload** button (private). Maintainers count packs with `tools/share_inbox.py`: a not-running DLL seen in five or more installs with no
 rule becomes a candidate, and a person confirms it in game before it becomes a rule. Raw packs are never committed.
 
 ## Bug reports
-Include `Vitals-Report.txt` (safe to share) and, if asked, `Vitals.jsonl`; the game build, F4SE version and mod manager; and what you expected. For a wrong message, include the line.
+Include `Vitals-Report.txt` (your user name is replaced, but it names your mods; an issue is public) and, if asked, `Vitals.jsonl`; the game build, F4SE version and mod manager; and what you expected. For a wrong message, include the line.
 
 ## Code changes
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) first, especially the design rules (read only, never stop the game, library-provided addresses only, exact build list).

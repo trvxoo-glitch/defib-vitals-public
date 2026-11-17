@@ -6,7 +6,7 @@ set_xmakever("3.0.0")
 includes("lib/commonlibf4")
 
 local plugin_name = "Vitals"
-local plugin_version = "0.4.1"
+local plugin_version = "0.4.2"
 local vmaj, vmin, vpat = plugin_version:match("^(%d+)%.(%d+)%.(%d+)$")
 
 set_project(plugin_name)

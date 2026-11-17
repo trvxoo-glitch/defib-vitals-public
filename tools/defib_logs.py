@@ -114,10 +114,15 @@ def parse_vitals(path):
 
 # ---------------------------------------------------------------- breadcrumbs.bin
 def parse_breadcrumbs(path):
-    data = open(path, "rb").read()
+    with open(path, "rb") as fh:
+        data = fh.read()
     if len(data) < 64 or data[:4] != b"VTLB":
         return None
     _ver, cap, esize, next_seq = struct.unpack_from("<IIIQ", data, 4)
+    # The same layout check as Share::BreadcrumbsText (include/Vitals/Share.h): 128-byte entries, at most 65536 of them, all
+    # present. A damaged or newer file is "no breadcrumbs", not a loop over a made-up capacity or entries read at wrong offsets.
+    if esize != 128 or not 0 < cap <= 65536 or len(data) < 64 + cap * esize:
+        return None
     entries = []
     for i in range(cap):
         off = 64 + i * esize

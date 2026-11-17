@@ -401,6 +401,57 @@ namespace Vitals::Rules
 		return false;
 	}
 
+	// ---------------------------------------------------------------- report text
+	// A not-running DLL's finding is one long sentence: why F4SE skipped it, then the details (when it was built, its file
+	// version, which mod installed it, a newer version on Nexus, other installed copies, the MO2 Overwrite paragraph). The
+	// report puts the details on their own indented line so the reason reads first. The break goes in front of the first
+	// detail sentence; a finding with none is returned as it is.
+	inline std::string BreakBeforeDetails(std::string a_message)
+	{
+		static constexpr std::string_view markers[] = { " Built (date inside the DLL)", " Its file is dated", " It was made with a linker", " File version ",
+			" Installed by the ", " Vortex says a newer version", " MO2 says a newer version", " The game is not loading the copy" };
+		std::size_t at = std::string::npos;
+		for (const auto m : markers)
+			at = std::min(at, a_message.find(m));
+		// "2 other installed mods have a working copy: ..." starts one word earlier, at the number
+		if (const auto other = a_message.find(" other installed mod"); other != std::string::npos && other > 0)
+			if (const auto space = a_message.rfind(' ', other - 1); space != std::string::npos)
+				at = std::min(at, space);
+		if (at != std::string::npos && at > 0)
+			a_message.replace(at, 1, "\n    ");
+		return a_message;
+	}
+
+	// ---------------------------------------------------------------- searching a loaded image
+	// Looks for a_needle (ASCII, any case) in an image of a_size bytes, one a_page at a time. a_read(offset, out, len) copies
+	// bytes out of the image and returns false when it cannot; the search only ever looks at the copy, so a page that is
+	// freed or re-protected while it runs fails a read instead of faulting. Each read takes needle-1 bytes of the next page,
+	// so a match across a page boundary is found; if that longer read fails the page is read alone, and a page that cannot
+	// be read is skipped without hiding the pages around it.
+	template <class Read>
+	inline bool SearchPaged(std::size_t a_size, std::string_view a_needle, Read&& a_read, std::size_t a_page = 4096)
+	{
+		if (a_needle.empty() || a_page == 0 || a_size < a_needle.size())
+			return false;
+		auto fold = [](unsigned char c) { return static_cast<unsigned char>(c >= 'A' && c <= 'Z' ? c + 32 : c); };
+		std::vector<std::uint8_t> buf;
+		for (std::size_t at = 0; at < a_size; at += a_page) {
+			auto len = std::min<std::size_t>(a_page + a_needle.size() - 1, a_size - at);
+			buf.resize(len);
+			if (!a_read(at, buf.data(), len)) {
+				len = std::min<std::size_t>(a_page, a_size - at);
+				buf.resize(len);
+				if (!a_read(at, buf.data(), len))
+					continue;
+			}
+			const auto hit = std::search(buf.begin(), buf.end(), a_needle.begin(), a_needle.end(),
+				[&](std::uint8_t a, char b) { return fold(a) == fold(static_cast<unsigned char>(b)); });
+			if (hit != buf.end())
+				return true;
+		}
+		return false;
+	}
+
 	// ---------------------------------------------------------------- load order
 	// The order the game really loads plugins in: the implicit files (Fallout4.esm, the DLCs, Fallout4.ccc) first, then
 	// every master-flagged plugin (ESM flag, .esm, .esl) in plugins.txt order, then every other plugin in plugins.txt

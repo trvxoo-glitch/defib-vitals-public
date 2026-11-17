@@ -9,34 +9,35 @@ Text files are UTF-8. Paths in output have the Windows user name replaced with `
 work; the `Fallout4` part follows F4SE's save folder name, for example `Fallout4 VR`). See [USER_GUIDE.md](USER_GUIDE.md#output-files) for the list of files.
 
 Rotation at start-up (`Common.cpp`, `OpenReport`): the old `Vitals.jsonl` is copied to
-`history\Vitals-<YYYYMMDD-HHMMSS>.jsonl` (time = when that session last wrote), the oldest history files beyond
-`iKeepSessions` are deleted, then `Vitals.jsonl` is renamed to `Vitals.prev.jsonl`.
+`history\Vitals-<YYYYMMDD-HHMMSS>.jsonl` (time = when that session last wrote, in UTC), the oldest history files beyond
+`iKeepSessions` are deleted, then `Vitals.jsonl` is renamed to `Vitals.prev.jsonl`. With `iKeepSessions=0` no copy is made
+and nothing in `history\` is deleted: files already there stay.
 
 ## Vitals.jsonl
 
 One JSON object per line, flushed after every line, so a crash leaves at most one cut-off last line (readers must
-skip a line that does not parse). Every record has `kind`. Fields can be added in any version; readers must
+skip a line that does not parse). Every record has `t` (when it was written, UTC, like `2026-11-17T01:02:03.456Z`) and `kind`. Fields can be added in any version; readers must
 ignore unknown fields and must not rely on field order.
 
 | kind | When | Main fields |
 | --- | --- | --- |
 | `start` | Vitals loaded | `vitals_version`, `doctor`, `papyrus_natives`, `layout_probes` |
-| `environment` | PostPostLoad | `game_version`, `runtime` (`OG`/`NG`/`AE`), `f4se_version`, `vitals_version`, `address_library_file`, `address_library_present`, `address_library_usable`, `address_library_state` (`ok`, `missing`, `unreadable`, `too_small`, `empty`, `truncated`, `unsorted`, `blocked`), `address_library_entries`, `game_dir` (UTF-8) |
-| `plugin` | one per DLL in `Data\F4SE\Plugins` | `file`, `size`, `sha256` (cached in `hashes.txt` by size and file time), `file_version`, `in_process`, `export_query`, `export_load`, `export_preload`, `plugin_name`, `plugin_author`, `plugin_version`, `address_independence`, `structure_independence`, `compatible_versions` |
+| `environment` | PostPostLoad | `game_version`, `runtime` (`OG`/`NG`/`AE`), `f4se_version`, `f4se_release_index`, `vitals_version`, `address_library_file`, `address_library_present`, `address_library_usable`, `address_library_state` (`ok`, `missing`, `unreadable`, `too_small`, `empty`, `truncated`, `unsorted`, `blocked`), `address_library_entries`, `game_dir` (UTF-8) |
+| `plugin` | one per DLL in `Data\F4SE\Plugins` | `file`, `size`, `sha256` (cached in `hashes.txt` by size and file time), `file_version`, `in_process`, `export_query`, `export_load`, `export_preload`, `plugin_name`, `plugin_author`, `plugin_version`, `address_independence`, `structure_independence`, `compatible_versions` (list of version strings), `f4se_minimum`, `f4se_registered`. A DLL that is not running has only `file`, `size`, `sha256`, `file_version` and `in_process`; the rest need a running DLL (one without `F4SEPlugin_Version` has `plugin_name` as `null`) |
 | `doctor_issue` | one per doctor finding | `severity` (`problem` may crash the game / `warning` will not work / `info`), `category` (`plugin_dll`, `data_file`, `load_order`, `conflict`, `loose_file`, `known_issue`, `ini_setup`), `subject`, `message`, `advice`; for `plugin_dll`: `reason` (the loader reason code, below) and `built` (`pre`/`post`/`unknown`, for plugins without version data) |
-| `doctor` | after the doctor | `problems`, `warnings`, `issues`, `rules` (rules loaded), `ms` (time taken) |
+| `doctor` | after the doctor | `problems`, `warnings`, `issues`, `rules` (rules loaded), `plugins_active` (0.4.2: active plugins found in plugins.txt; absent when plugins.txt was not read), `ms` (time taken) |
 | `doctor_popup` | the message box was shown | `crash_risks`, `not_running` (0.3.0: `problems`) |
 | `doctor_popup_choice` | the user pressed a button | `choice`: `continue`, `dont_show_again`, `stop_game` |
 | `doctor_popup_copy` | the user pressed Copy report (0.4.0) | `copied`, `chars` |
 | `share_pack` | a share pack was written (opt-in, 0.4.0) | `when` (`start`, `main_menu`), `files`, `bytes`, `scrubbed` (items replaced), `left_out` (files dropped by the size cap) |
-| `address` | one per checked ID | `name`, `id`, `source` (list file), `entry_kind` (`fn`/`ptr`/`data`), `checked_as`, `result`, `offset`, `bytes`, `expected`, `ptr_class` (also `listed_as_code_but_is_data`), `jump_target`, `hooked_by`, `owner_category`, `jump_hops`, `stub`, `expected_bytes_not_checked` |
+| `address` | one per checked ID | `name`, `id`, `source` (list file), `entry_kind` (`fn`/`ptr`/`data`), `checked_as`, `result`, `offset`, `bytes`, `expected`, `ptr_class` (also `listed_as_code_but_is_data`), `jump_target`, `hooked_by`, `owner_category`, `jump_hops`, `stub`, `expected_bytes_not_checked`, `normally_patched_by` (0.4.2: a running DLL that the `patchedby` rules name as the usual patcher of a function that is `patched_in_place` or `differs`), `source`, `runtime`, `id_text` (`bad_id_text`), `pointer`, `pointer_readable`, `first_qword` |
 | `address_check_unavailable` | instead of the address check, when the Address Library is not usable | `address_library_file`, `state`, `problem` |
 | `error` | a step stopped on an exception (the game keeps running) | `step`, `what` |
-| `hooks_by_module` | after the address check | `modules`: DLL name -> number of detoured functions (mods only) |
+| `hooks_by_module` | after the address check | `modules`: a list of `{"module": DLL name, "functions": number of detoured functions}` (mods only; `?` is a trampoline outside any DLL) |
 | `pointer_recheck` | after a load, for pointers that were null | `name`, `readable_now`, `pointer_now` |
 | `papyrus_native` | developer option | `module`, `script`, `function`, `static`, `returns`, `params`, `param_types` |
 | `layout_probe` | developer option | `probe`, `method`, `when`, `runtime`, `library_offset`, `advancing_ms_slots`, `verdict`, `agrees_with_library` (`null` when the timer was paused: nothing observed), `slots` |
-| `phase` | every F4SE message | `event`, `ms_since_vitals_load` |
+| `phase` | every F4SE message | `event` (`PostLoad`, `PostPostLoad`, `InputLoaded`, `GameLoaded`, `GameDataReady`, `NewGame`, `PreLoadGame`, `PostLoadGame`, `PreSaveGame`, `PostSaveGame`, `DeleteGame`; `GameDataReady` is the game's data being ready, not proof that the menu is drawn), `ms_since_vitals_load` (a string, `"97400"`) |
 | `session` | save loaded / new game | `event` |
 | `auto_exit` | test-rig exit | `reason` |
 
@@ -51,6 +52,9 @@ ignore unknown fields and must not rely on field order.
 | `resolved_no_baseline` | The ID resolved but there are no expected bytes for this build |
 | `checked_data` | Data entry: read, never compared |
 | `unresolved` | The Address Library has no offset for this ID on this build |
+| `no_id_for_runtime` | The list has `-` as the ID for this runtime, so nothing was looked up |
+| `bad_id_text` | The list's ID for this runtime is not a number (`id_text` holds it): fix the list line |
+| `unreadable` | The ID resolved, but the memory at that address could not be read |
 | `bad_expected_value` | The list's expected value is not hex (odd number of digits, or a pair that is not hex or `??`): fix the list line. CI checks the shipped lists |
 
 `owner_category`: `game` (Fallout4.exe's own jump stubs), `system` (Windows, MSVC runtime), `plugin` (a DLL in
@@ -82,19 +86,27 @@ kind | match | extra | severity | message
 Since 0.4.0 a kind can name the game versions it applies to: `oldfile@NG,AE | ...` (`OG` = 1.10.163, `NG` =
 1.10.980/984, `AE` = 1.11.x, any order and case). Without a list the rule applies to every version. Older Vitals see an
 unknown kind and skip the rule. `Rules::RuleRuntimes` decides; `tools/defib_preflight.py` does the same.
+
 | kind | match | extra | Issue when |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- |
 | `dll` | DLL file name in `Data\F4SE\Plugins` | `refused` or `-` | the DLL is present (and, with `refused`, not running) |
 | `needs` | text found inside a DLL (case-insensitive) | file it needs, relative to the game folder | a DLL contains the text and the file is missing |
 | `conflict` | file relative to the game folder | another file | both exist |
 | `oldfile` | loose file relative to the game folder | date `YYYY-MM-DD` | the file is older than the date |
 | `file` | file relative to the game folder | `-` | the file exists |
+| `dllbuild` (0.4.2) | DLL file name in `Data\F4SE\Plugins` | the plugin version the DLL reports (`0.0.4.13`; a shorter `0.0.4` matches every sub-build) | the DLL is running and its own plugin version matches. Only that version counts, never a file date |
+| `patchedby` (0.4.2) | part of a game function's name, any case | the DLL that normally patches it | never an issue: the address check says "normally patched by X, which is running" for a changed function, only when X is running. `severity` is not used (write `info`) |
 
 Special names usable as files: `{ENB}` (an ENB is installed: `enbseries.ini` or `enblocal.ini` plus `d3d11.dll`
 or `dxgi.dll` in the game folder) and `{ADDRESS_LIBRARY}` (the Address Library file for the running build).
 `severity`: `problem` (may crash the game; always shown in the message box), `warning`, `info`. `#` or `;` starts a comment. The message may
 contain `|`. `defib-known.txt` and `defib-census.txt` (generated by the census repository) are replaced by updates; put your own
-rules in another file. Files are read in name order and the same rule (kind, match, extra) is used once. A
+rules in another file. The same rule (kind, match, extra) is used once, from the file read first. Files without a
+`# Generated: YYYY-MM-DD` line near the top are read first, in name order (so your own file is never outranked by a
+generated one); then the dated files, newest first (so a newer rules file downloaded on its own wins over the one that came with
+Vitals). Before 0.4.2 every file was read in name order. The report header lists the files used and how many rules came from
+each. `severity` `warn` is read as `warning`; any other word is used as `warning` and noted in `Vitals-summary.txt`. An `oldfile`
+date before 2015-11-10 on the file itself (some archives store 1980-01-01) is ignored. A
 `dll | X.dll | refused` rule's message becomes the "What to do" of X.dll's not-running finding (its severity is used
 when higher). Every shipped rule
 must come from a finding confirmed in game, with the date and build in a comment above it.
@@ -119,11 +131,12 @@ through the `Vitals_Breadcrumb` export (see `include/Vitals/Breadcrumbs.h`).
 ## status.json
 
 Rewritten on every F4SE event (written to `status.json.tmp` and renamed over it, so a reader never sees half a file), for scripts such as `tools/smoke_test.ps1`: `vitals_version`, `pid` (the game's process id, so the smoke test stops only that game), `game_version`,
-`last_phase`, `main_menu_ready`, `save_or_new_game_loaded`, `phases` (list of `{phase, ms}`).
+`last_phase`, `main_menu_ready`, `save_or_new_game_loaded`, `phases` (list of `{phase, ms}`, `ms` a string such as `"7260"`).
 
 ## popup_disabled.txt
 
-Starts with the line `# vitals-popup-keys 2`, then holds one `category:subject` key per line, read back exactly
+Starts with the line `# vitals-popup-keys 2`, then holds one `category:subject` key per line (the file name is lower-cased, like
+`plugin_dll:foo.dll`; a key typed by hand in another case does not match), read back exactly
 as written (DLL names may contain spaces or `;`). Other lines starting with `#` are comments. Files without the first
 line are from 0.3.0 or earlier 0.3.1 test builds and are still read (keys split on `;`).
 
@@ -176,5 +189,23 @@ left out and named in the manifest. These are the only names in a pack.
 
 ## Vitals.ini
 
-See the comments in the file. Values are read once at load. Clamped: `iPopupMode` 0-2, `iKeepSessions` 0-50,
-`iBytesToRead` 4-64.
+Values are read once at load, with `GetPrivateProfileInt`: a missing key uses the default, a value that is not a number counts as 0.
+
+| Key | Default | Range | Does |
+| --- | --- | --- | --- |
+| `bDoctor` | 1 | 0/1 | The plugin doctor and Vitals-Report.txt |
+| `iPopupMode` | 1 | 0-2 | The start-up box: 0 never, 1 or 2 every launch while there is something to list |
+| `iKeepSessions` | 5 | 0-50 | Earlier sessions kept in `history\` (0: none copied, none deleted) |
+| `bSharePack` | not set | -1, 0, 1 | Not set (commented out): follow `share-optin.txt`. 0 always off, 1 on |
+| `bEnvironmentReport` | 1 | 0/1 | The `environment` and `plugin` records |
+| `bAddressCheck` | 1 | 0/1 | The address check at the main menu |
+| `bCaptureBaseline` | 0 | 0/1 | Save the bytes seen as this build's local baseline (one launch) |
+| `bBreadcrumbs` | 1 | 0/1 | The breadcrumb ring |
+| `bPapyrusNatives` | 0 | 0/1 | Developer: list Papyrus natives |
+| `bLayoutProbes` | 0 | 0/1 | Developer: layout probes |
+| `iBytesToRead` | 16 | 4-64 | Bytes read at each checked address |
+| `bTimeline` | 1 | 0/1 | `phase` records and `status.json` |
+| `iExitAfterMenuSeconds`, `iExitAfterLoadSeconds` | 0 | 0-3600 | Test rigs only: end the game without saving after N seconds |
+
+Any value other than 0 counts as on for the `b` keys. The last-launch recap and the "changed since last launch" section
+of the report read `Vitals.prev.jsonl`, so they need `bEnvironmentReport=1` (for DLLs and versions) and `bTimeline=1` (for the recap).

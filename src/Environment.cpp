@@ -8,6 +8,8 @@ namespace Vitals
 {
 	namespace
 	{
+		EnvNow g_env;
+
 		std::string FileSha256(const std::filesystem::path& a_file)
 		{
 			std::ifstream in(a_file, std::ios::binary);
@@ -110,6 +112,9 @@ namespace Vitals
 			.UNum("address_library_entries", al.count)
 			.Str("game_dir", Narrow(GameDir().wstring())));  // UTF-8 (path::string() is the ANSI code page)
 
+		g_env.recorded = true;
+		g_env.game = game.string();
+		g_env.f4se = f4se.string();
 		Summary(std::format("Vitals {} | game {} ({}) | F4SE {}", F4SE::GetPluginVersion().string(), game.string(), RuntimeName(), f4se.string()));
 		Summary(std::format("Address Library {}: {}", al.file, al.usable ? std::format("present, {} entries", al.count) : al.present ? "NOT USABLE (" + al.problem + ")" : "MISSING"s));
 
@@ -123,10 +128,15 @@ namespace Vitals
 			const auto  file = entry.path().filename();
 			const auto  hmod = REX::W32::GetModuleHandleW(file.c_str());
 			Json        j;
-			j.Str("file", Narrow(file.wstring()))
+			EnvDll env;
+			env.file = Narrow(file.wstring());
+			env.sha256 = hashes.Get(entry.path(), entry.file_size(ec));
+			env.fileVersion = FileVersion(entry.path());
+			env.running = hmod != nullptr;
+			j.Str("file", env.file)
 				.UNum("size", entry.file_size(ec))
-				.Str("sha256", hashes.Get(entry.path(), entry.file_size(ec)))
-				.Str("file_version", FileVersion(entry.path()))
+				.Str("sha256", env.sha256)
+				.Str("file_version", env.fileVersion)
 				.Bool("in_process", hmod != nullptr);
 
 			if (hmod) {
@@ -145,7 +155,7 @@ namespace Vitals
 					}
 					j.Str("plugin_name", vd.name)
 						.Str("plugin_author", vd.author)
-						.Str("plugin_version", VersionString(vd.pluginVersion))
+						.Str("plugin_version", env.pluginVersion = VersionString(vd.pluginVersion))
 						.UNum("address_independence", vd.addressIndependence)
 						.UNum("structure_independence", vd.structureIndependence)
 						.Raw("compatible_versions", Json::Array(compat))
@@ -158,7 +168,10 @@ namespace Vitals
 				}
 			}
 			Emit("plugin", std::move(j));
+			g_env.dlls.push_back(std::move(env));
 		}
 		Summary(std::format("F4SE plugin folder: {} DLLs, {} in the game process (compare with f4se.log for reasons)", total, loaded));
 	}
+
+	const EnvNow& CurrentEnvironment() { return g_env; }
 }

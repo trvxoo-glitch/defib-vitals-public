@@ -38,8 +38,10 @@ If there is a new reason, give it a sentence in `Explain` (`src/Doctor.cpp`).
 
 Census findings are the main source. They live in the defib-census repo (`rules/*.txt`) and reach Vitals as a
 generated file: run `python scripts/census.py export` there and copy the result over
-`dist/Data/F4SE/Plugins/Vitals/knowledge/defib-census.txt` (never edit that file by hand). Anything that is not a
-census finding goes in `defib-known.txt`. Either way: only something confirmed in game, with a comment giving the
+`dist/Data/F4SE/Plugins/Vitals/knowledge/defib-census.txt` (never edit that file by hand; the export writes a
+`# Generated:` date that decides which file wins when two hold the same rule). Tag each rule with the game versions it was
+confirmed on or is true for (`dll@AE`, `dll@NG,AE`, `oldfile@NG,AE`), in the census rules file: a rule with no tag shows
+on every version, including ones where its advice is wrong. Anything that is not a census finding goes in `defib-known.txt`. Either way: only something confirmed in game, with a comment giving the
 date, the build and what was seen. Format: [FILE_FORMATS.md](FILE_FORMATS.md). Prefer specific rules (a file name,
 a date) over broad ones. Use `problem` only for what may crash the game: it always opens the start-up box and
 "Don't show" cannot silence it, so a false problem costs trust. `tests/test_tools.py` checks that every shipped
@@ -52,17 +54,18 @@ rule parses.
 | Loads; report written; matches f4se.log | required | required | when available |
 | Doctor: a known-refused DLL explained correctly | required | required | |
 | Doctor: an inactive master reported (temporarily untick a master) | required | | |
-| Message box shows once, not again on the next launch; shows again after Stop game | required | | |
-| Message box buttons: Continue / Don't show (lists plugins in popup_disabled.txt; a crash risk still shows) / Stop game (ends the game) | required | | |
+| Message box opens on every launch while something is listed (`iPopupMode=1`); after Don't show it lists only what is still not silenced; with nothing to list there is no box and the report says ALL CLEAR | required | | |
+| Message box buttons: Continue / Don't show (lists plugins in popup_disabled.txt; a crash risk still shows) / Copy report (puts the report on the clipboard, the box stays open) / Stop game (ends the game) | required | | |
 | INI warning: appears with loose files and no INI settings, absent on a correct setup | required | | |
 | Address check: no unexpected `differs` on a clean F4SE + Vitals launch | required | required | |
 | Save load: pointer re-check, no crash | required | required | |
-| Share pack (Yes in the installer): `Vitals-Share.zip` is written before the box, again at the main menu, nothing personal in it (open it and search for your user name, PC name, save names); No thanks writes no pack, and removes an old one | required | | |
+| Report top: the "Last launch" recap and "CHANGED SINCE LAST LAUNCH" match the previous launch (replace or remove one DLL between two launches and check it is listed) | required | | |
+| Share pack (Yes in the installer): `Vitals-Share.zip` is started right after the report is written, before the box, and is finished while the box is open (a box left open for a while can still be racing the write), written again at the main menu, nothing personal in it (open it and search for your user name, PC name, save names); No thanks writes no pack, and removes an old one | required | | |
 | Mod manager evidence: Vortex (`Installed by`, newer-on-Nexus line) and MO2 (instance chosen, winner from `modlist.txt`, Overwrite advice) | required (Vortex) | required (MO2) | |
 | Unit tests (`python -m unittest discover -s tests`, includes the C++ rules test) | CI | | |
 | FOMOD installs in Vortex and MO2, both options | required | | |
 
-Record the results in `CHANGELOG.md` ("Tested in game: ..."), and what was **not** tested.
+Keep the results (and what was **not** tested) in your own notes or the release thread. Do not write "tested" or "not tested" lines in `CHANGELOG.md`: they go stale and contradict each other.
 
 ## Releasing
 
@@ -81,3 +84,11 @@ Record the results in `CHANGELOG.md` ("Tested in game: ..."), and what was **not
 * Baselines and anything copied from the game are local only.
 * Secrets (Nexus API key) live only in the environment, never in the repo or chat.
 * Every release is tagged AI Assisted.
+
+## Share packs you collected
+
+A pack is deleted 90 days after it arrived, or sooner when the sender asks (the privacy page promises this). Nothing in the
+release process does it for you, so on each release: list the files in your `inbox` folder, delete every pack older than
+90 days, and delete the derived files you made from them that still hold a sender's data. Only the counts (five or more
+installs) are ever published. A person opens a pack when one has to be read; an AI assistant is given only `summary.md`
+(counts and file names), never a raw pack.

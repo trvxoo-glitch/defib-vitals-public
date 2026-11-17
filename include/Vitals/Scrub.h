@@ -651,12 +651,32 @@ namespace Vitals::Scrub
 				out += a_in[i++];
 				continue;
 			}
+			// A folder name can hold the characters that otherwise end a path: an apostrophe between two letters
+			// ("Robin's Mods") and a bracket group that is followed by a separator ("Program Files (x86)\",
+			// "Mods [Vortex]\"). Returns how many characters at a_at belong to the name, 0 when they end the path:
+			// a quote after a path ("'D:\a\b'") and a group not followed by a separator ("D:\a\b (loaded)") still do.
+			auto namePart = [&](std::size_t a_at) -> std::size_t {
+				const char c = a_in[a_at];
+				if (c == '\'')
+					return a_at > i + 2 && IsAlpha(a_in[a_at - 1]) && a_at + 1 < a_in.size() && IsAlpha(a_in[a_at + 1]) ? 1 : 0;
+				const char close = c == '(' ? ')' : c == '[' ? ']' : c == '{' ? '}' : '\0';
+				if (!close)
+					return 0;
+				for (std::size_t k = a_at + 1; k < a_in.size() && k <= a_at + 64 && a_in[k] != '\r' && a_in[k] != '\n'; ++k)
+					if (a_in[k] == close)
+						return k + 1 < a_in.size() && IsSep(a_in[k + 1]) ? k + 1 - a_at : 0;
+				return 0;
+			};
 			// find the end of the path
 			std::size_t e = i + 2, lastSep = i + 2;
 			while (e < a_in.size()) {
 				const char c = a_in[e];
 				if (const auto t = token(e)) {
 					e += t;
+					continue;
+				}
+				if (const auto n = namePart(e)) {
+					e += n;
 					continue;
 				}
 				if (hard(c) || (e > i + 2 && drive(e)) || (c == ':' && e + 2 < a_in.size() && a_in[e + 1] == '/' && a_in[e + 2] == '/'))
@@ -671,7 +691,9 @@ namespace Vitals::Scrub
 						bool ext = true;
 						for (std::size_t k = dot + 1; k < name.size(); ++k)
 							ext = ext && IsAlnum(name[k]);
-						if (ext)
+						// An extension starts with a letter (".dll", ".esp", ".ba2"), or is ".7z". A version number in a folder
+						// name ("Fallout 4 v1.10.163 Old", "Mods v1.2 Final") is not one: the path goes on.
+						if (ext && (IsAlpha(name[dot + 1]) || name.substr(dot + 1) == "7z"))
 							break;
 					}
 				}

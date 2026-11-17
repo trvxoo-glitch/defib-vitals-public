@@ -36,7 +36,7 @@ IDs a port relies on point at the expected code, Papyrus native functions per DL
 | Requires | [F4SE](https://www.nexusmods.com/fallout4/mods/42147) for your game version, and [Address Library for F4SE Plugins](https://www.nexusmods.com/fallout4/mods/47327) (without it Vitals still starts and says so; only the address check is skipped) |
 | Safe | Reads only. Never writes to game memory, installs no hooks, adds no plugin (.esp) and no save data, and has no network code. Its files go only in `Documents\My Games\Fallout4\F4SE\Vitals`. Remove it any time. |
 | Works with | Buffout 4, Buffout 4 NG, Addictol and their crash loggers, CLASSIC, LOOT, Vortex, Mod Organizer 2 |
-| AI Assisted | Written with Claude (Anthropic), tested in game by a person. See `AI_DISCLOSURE.md`. |
+| AI Assisted | Written with Claude (Anthropic); a person runs the in-game tests and decides what ships. See `AI_DISCLOSURE.md`. |
 
 ## Install
 
@@ -55,7 +55,7 @@ whether to make a share pack you can send (default: no).
 After one launch (the main menu is enough), open `Documents\My Games\Fallout4\F4SE\Vitals\Vitals-Report.txt`.
 
 ```
-Vitals 0.4.1 report | game 1.11.240.0 (AE) | F4SE 0.7.9.0
+Vitals 0.4.2 report | game 1.11.240.0 (AE) | F4SE 0.7.9.0
 1 problem(s), 1 warning(s), 0 note(s). Problems may crash the game; warnings are mods that will not work as installed.
 
   Mod manager: Vortex; looked through 1041 installed mods for other copies of the 1 not-running DLL(s) in 205 ms
@@ -67,8 +67,8 @@ PROBLEMS
 
 WARNINGS
   - OldThing.dll is in Data\F4SE\Plugins but is not running: it is an older-style plugin (Query only) without
-    F4SEPlugin_Version data, which F4SE 0.7.x needs, so F4SE skips it. File version 1.0.1.0. Installed by the Vortex
-    mod "Old Thing-1234-1-0-1".
+    F4SEPlugin_Version data, which F4SE 0.7.x needs, so F4SE skips it.
+    File version 1.0.1.0. Installed by the Vortex mod "Old Thing-1234-1-0-1".
     What to do: Look for a version of this mod for your game version, or a replacement. ...
 ```
 

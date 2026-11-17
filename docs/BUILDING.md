@@ -2,7 +2,7 @@
 
 ## Windows (the official way)
 
-Needs Visual Studio 2022 (Desktop development with C++), XMake 3.1.2, Git and Python 3.9+.
+Needs Visual Studio 2022 (Desktop development with C++), XMake 3.0.0 or newer (`xmake.lua` asks for 3.0.0; CI and the Linux cross-build use 3.1.2), Git and Python 3.9+.
 
 ```bat
 powershell -File tools\fetch_commonlib.ps1
@@ -23,7 +23,8 @@ python -m unittest discover -s tests
   `F4SEPlugin_Version` export or would not load on 1.11.240. Uploads `package/` and `symbols/` as an artifact.
 * `analyzer` job: the Python unit tests.
 * `release` job: on a `v*` tag, or a manual run with `release_version` set (the cloud session cannot push tags).
-  Zips the package as `Vitals-<ver>-AI-Assisted.zip`, takes notes from `CHANGELOG.md`, adds the AI Assisted line.
+  Zips the package as `Vitals-<ver>-AI-Assisted.zip` (the main file) and the guides and changelog that are not in it as
+  `Vitals-<ver>-Extra-Docs.zip` (an optional file on Nexus; `make_package.py` builds both), plus a symbols zip. Takes notes from `CHANGELOG.md`, adds the AI Assisted line.
 
 ## Linux cross-build (quick compile check)
 

@@ -1,10 +1,43 @@
 # Vitals changelog
 
-All releases are AI Assisted (see AI_DISCLOSURE.md) and tested in game by a person on the builds listed. Dates are
-2026. Newest first: 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
+All releases are AI Assisted (see AI_DISCLOSURE.md). Dates are 2026. Newest first: 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
+
+## 0.4.2 (2026-11-17: last-launch recap, changes since last launch, rule updates, report layout and fixes)
+* **Changed:** in `Vitals-Report.txt`, a not-running DLL's finding now puts the reason on the first line and the details
+  (when it was built, File version, Installed by, other copies) on a second indented line, so the reason reads first.
+* **New:** the report starts with a recap of the last launch (when it started, how long until game data was ready and a
+  save loaded, whether the game closed normally) and names a `crash*.log` that was written after that launch started. It
+  never says "crashed": it only says what the records show.
+* **New:** a "CHANGED SINCE LAST LAUNCH" section lists F4SE DLLs that were replaced (old version -> new version), added or
+  removed, a different game or F4SE version, and a different active plugin count. DLLs are compared by their SHA-256, never
+  by file date. It says "Nothing changed since the last launch." when that is true.
+* **New:** the report header lists which knowledge-rule files were read and how many rules came from each. When two
+  files hold the same rule, the file with the newer `# Generated: YYYY-MM-DD` header wins (files with no date come first,
+  as before), so a newer rules file downloaded on its own outranks the one that shipped.
+* **New:** knowledge rules can name one build of a DLL (`dllbuild`, matched on the plugin version the running DLL
+  reports), and `patchedby` rules let the address check say "normally patched by Addictol.dll, which is running" next to
+  functions whose bytes differ from the baseline. No rule of the first kind ships yet.
+* **Changed (rules):** each census rule for a DLL is now limited to the game versions it was seen on or is true for
+  (`dll@AE`, `dll@NG,AE`), so Old-Gen players no longer see "does not run on this game version" advice that is wrong for
+  them. The old main menu `MainMenu.swf` rule now applies to Anniversary builds only.
+* **Fixed (report layout):** the details line under a not-running DLL's reason now also starts at "Installed by", a newer
+  version on Nexus, the other-copies sentence and the MO2 Overwrite paragraph, not only at the build date or file version.
+  A DLL with no version resource and no build sentence used to keep everything on one long line.
+* **Fixed (crash safety):** the in-memory search of a running DLL skips a DLL whose header is not a 64-bit PE or claims more
+  than 128 MB, instead of scanning up to 512 MB of pages on a damaged header.
+* **Fixed (share pack):** a folder path was left whole in `Vitals-Share.zip` instead of being cut to its last two names when
+  a folder name held an apostrophe (`Robin's Mods`), a bracket group (`Program Files (x86)`, `Mods [Vortex]`) or a version
+  number followed by a space (`Fallout 4 v1.10.163 Old`). Such paths are now shortened like any other.
+* **Fixed (crash safety):** the check that looks inside running F4SE DLLs for a text a rule names (used while
+  `f4rd-runtime.bin` is missing) now reads each page through the same checked copy as every other read of game memory,
+  instead of reading the page directly after checking it. A DLL that changed its own memory at that moment could crash the game.
+* **Fixed (tools):** `tools\defib_logs.py` treats a `breadcrumbs.bin` with an unexpected layout as "no breadcrumbs", the
+  way the plugin does, instead of looping or reading garbage.
 
 ## 0.4.1 (2026-11-16: ALL CLEAR line, smaller download)
-Not yet tested in game.
+Tested in game 2026-11-16: 1.11.240 with A StoryWealth through Vortex (a 47-minute session with a save loaded and saved,
+clean exit) and 1.10.163 through Mod Organizer 2 (save loaded and saved), each with the ALL CLEAR line, the share pack and
+the doctor behaving as expected. **Not tested:** 1.10.984.
 * **New:** when Vitals finds no problems and no warnings, `Vitals-Report.txt` now starts with "ALL CLEAR: Vitals ran and
   found no problems or warnings". Players with a healthy setup saw no box and could not tell whether Vitals had run.
 * **Changed:** the installer's share-pack page explains what the pack holds and why, then gives the three steps to send it

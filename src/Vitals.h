@@ -89,8 +89,23 @@ namespace Vitals
 	const char*                  RuntimeName();
 
 	// ---- Parts ----
+	// What ReportEnvironment recorded this launch (the same facts as its Vitals.jsonl lines), kept in memory so the doctor
+	// can compare with the last launch without reading the file back.
+	struct EnvDll
+	{
+		std::string file, sha256, fileVersion, pluginVersion;  // pluginVersion: only for a DLL that is running and has F4SEPlugin_Version
+		bool        running{ false };
+	};
+	struct EnvNow
+	{
+		bool                recorded{ false };
+		std::string         game, f4se;
+		std::vector<EnvDll> dlls;
+	};
+	const EnvNow& CurrentEnvironment();
 	void ReportEnvironment();  // kPostPostLoad
 	void RunDoctor();          // kPostPostLoad: plugin doctor, load-order and known-problem checks, Vitals-Report.txt
+	std::optional<std::string> PatchOwner(std::string_view a_function);  // a running DLL that normally patches this function (patchedby rules)
 	void DoctorAddressNote(std::string_view a_line);  // kGameDataReady: add the address-check result to Vitals-Report.txt
 	bool SharePackEnabled();   // opt-in: bSharePack, or the installer's share-optin.txt
 	void WriteSharePack(std::string_view a_when);  // background thread; when off, removes an old pack
