@@ -157,7 +157,8 @@ file name and how many minutes after the start it was written are shown. Vitals 
 "CHANGED SINCE LAST LAUNCH" lists F4SE DLLs that were **Replaced** (old version -> new version, or "different file" when the
 version is the same), **New** or **Removed**; a different game or F4SE version; and a different number of active plugins.
 DLLs are compared by their SHA-256, never by file date, so only a real change is listed. "Nothing changed since the last
-launch." means just that. It compares with the one previous launch; `defib_logs.py --compare` goes further back.
+launch." means just that. When the game or F4SE version changed and more than three DLLs were added or removed (a
+switch between game versions or profiles), the section only counts them instead of listing each one. It compares with the one previous launch; `defib_logs.py --compare` goes further back.
 
 ### "Knowledge rules: ... from defib-census.txt" (report header)
 

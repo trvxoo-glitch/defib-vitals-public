@@ -9,7 +9,7 @@ All releases are AI Assisted (see AI_DISCLOSURE.md). Dates are 2026. Newest firs
   save loaded, and the last event Vitals saw; it cannot see the game close, so it never says it closed normally) and names a `crash*.log` that was written after that launch started. It
   never says "crashed": it only says what the records show.
 * **New:** a "CHANGED SINCE LAST LAUNCH" section lists F4SE DLLs that were replaced (old version -> new version), added or
-  removed, a different game or F4SE version, and a different active plugin count. DLLs are compared by their SHA-256, never
+  removed (only counted when the game or F4SE version also changed), a different game or F4SE version, and a different active plugin count. DLLs are compared by their SHA-256, never
   by file date. It says "Nothing changed since the last launch." when that is true.
 * **New:** the report header lists which knowledge-rule files were read and how many rules came from each. When two
   files hold the same rule, the file with the newer `# Generated: YYYY-MM-DD` header wins (files with no date come first,

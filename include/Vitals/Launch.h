@@ -248,9 +248,19 @@ namespace Vitals::Rules::Launch
 		for (const auto& [key, was] : before)
 			if (!after.contains(key))
 				removed.push_back("Removed: " + was->file + (was->version.empty() ? "" : " " + was->version));
+		// A different game or F4SE version means a different set of DLLs was installed (a profile or game-version switch),
+		// so listing every added/removed DLL is noise: say how many instead. Replaced DLLs are still listed one by one.
+		const bool versionSwitch = (!a_prev.game.empty() && !a_now.game.empty() && a_prev.game != a_now.game) ||
+		                           (!a_prev.f4se.empty() && !a_now.f4se.empty() && a_prev.f4se != a_now.f4se);
 		std::vector<std::string> all;
-		for (auto* v : { &replaced, &added, &removed })
-			all.insert(all.end(), v->begin(), v->end());
+		if (versionSwitch && (added.size() + removed.size()) > 3) {
+			all = replaced;
+			out.push_back("The set of DLLs is different (" + std::to_string(added.size()) + " new, " + std::to_string(removed.size()) +
+			              " removed), as expected after a game or F4SE version change.");
+		} else {
+			for (auto* v : { &replaced, &added, &removed })
+				all.insert(all.end(), v->begin(), v->end());
+		}
 		for (std::size_t i = 0; i < all.size() && i < a_maxEntries; ++i)
 			out.push_back(all[i]);
 		if (all.size() > a_maxEntries)
