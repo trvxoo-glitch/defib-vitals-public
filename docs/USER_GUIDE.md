@@ -148,9 +148,10 @@ disable it.
 ### "Last launch (...)" and "CHANGED SINCE LAST LAUNCH" (0.4.2)
 
 The report starts with a short recap of the previous launch, read from `Vitals.prev.jsonl`: when it started, how many
-seconds until game data was ready (just before the main menu) and until a save loaded, and whether the game closed
-normally. "Vitals saw no later event" means exactly that: the game may have crashed, been closed from Task Manager, or
-simply been closed without a clean exit. If a `crash*.log` in the F4SE folder was written after that launch started, its
+seconds until game data was ready (just before the main menu) and until a save loaded, and the last event Vitals saw
+("The last thing Vitals saw was ... at N s", for example a save). Vitals cannot see the game close, so it never says the
+game closed normally. "Vitals saw no later event" means exactly that: the game may have crashed, been closed from Task
+Manager, or simply been closed. If a `crash*.log` in the F4SE folder was written after that launch started, its
 file name and how many minutes after the start it was written are shown. Vitals never says "crashed" on its own.
 
 "CHANGED SINCE LAST LAUNCH" lists F4SE DLLs that were **Replaced** (old version -> new version, or "different file" when the

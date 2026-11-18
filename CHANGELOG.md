@@ -6,7 +6,7 @@ All releases are AI Assisted (see AI_DISCLOSURE.md). Dates are 2026. Newest firs
 * **Changed:** in `Vitals-Report.txt`, a not-running DLL's finding now puts the reason on the first line and the details
   (when it was built, File version, Installed by, other copies) on a second indented line, so the reason reads first.
 * **New:** the report starts with a recap of the last launch (when it started, how long until game data was ready and a
-  save loaded, whether the game closed normally) and names a `crash*.log` that was written after that launch started. It
+  save loaded, and the last event Vitals saw; it cannot see the game close, so it never says it closed normally) and names a `crash*.log` that was written after that launch started. It
   never says "crashed": it only says what the records show.
 * **New:** a "CHANGED SINCE LAST LAUNCH" section lists F4SE DLLs that were replaced (old version -> new version), added or
   removed, a different game or F4SE version, and a different active plugin count. DLLs are compared by their SHA-256, never

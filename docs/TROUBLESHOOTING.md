@@ -13,7 +13,7 @@
 | `Vitals-Report.txt` has no ADDRESS CHECK section | The game did not reach the main menu, or `bAddressCheck=0` |
 | Address check: `patched_in_place` | A fix mod switched that function off (it now returns at once). The bytes do not say which mod; the report names a running DLL that normally does it when it knows one |
 | Address check: many `differs` | The function was patched in some other way, or the address list does not match your build. Report it with `Vitals.jsonl` |
-| A "Last launch" line says "Vitals saw no later event" | The previous launch ended without a clean exit. That can be a crash, Task Manager, or a power cut: if a crash log was written after it started, the line names it |
+| A "Last launch" line says "Vitals saw no later event" | Vitals cannot see the game close. That can be a crash, Task Manager, or a power cut: if a crash log was written after it started, the line names it |
 | Address check: `resolved_no_baseline` on Old-Gen | Expected. The Steam 1.10.163 exe is encrypted on disk. Optional: capture a local baseline once (`bCaptureBaseline=1`, F4SE + Vitals only, then back to 0) |
 | A load-order warning for a plugin that is fine | Vitals reads `%LOCALAPPDATA%\Fallout4\plugins.txt` and `Fallout4.ccc`. If your manager keeps the order elsewhere and it does not reach the game, report it with the report file |
 | Start-up a little slower | The doctor reads each plugin that is not running once and looks through your mod folders for other copies (limited to 2 seconds; the report's "Mod manager:" line shows the time). `bDoctor=0` turns it off |

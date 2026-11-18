@@ -180,24 +180,29 @@ namespace Vitals::Rules::Launch
 			return std::nullopt;
 		};
 		const auto ready = seconds("GameDataReady"), loaded = seconds("PostLoadGame");
-		bool       clean = false;
-		for (const auto& p : a_prev.phases)
-			clean = clean || p.first == "DeleteGame";
+		// DeleteGame is the game removing an old save (autosave rotation), not a sign that the game closed,
+		// so the recap names the last event Vitals saw instead of claiming a clean exit.
+		std::string lastEvent;
+		long        lastSeconds = 0;
+		if (!a_prev.phases.empty()) {
+			lastEvent   = a_prev.phases.back().first;
+			lastSeconds = static_cast<long>(a_prev.phases.back().second / 1000.0 + 0.5);
+		}
 		std::string text = "Last launch (" + when + " UTC): ";
 		std::vector<std::string> parts;
 		if (ready)
 			parts.push_back("game data was ready (the main menu) after " + std::to_string(*ready) + " s");
 		if (loaded)
 			parts.push_back("a save loaded after " + std::to_string(*loaded) + " s");
-		if (clean)
-			parts.push_back("the game closed normally");
 		if (parts.empty()) {
 			text += "Vitals saw no game event.";
 		} else {
 			for (std::size_t i = 0; i < parts.size(); ++i)
 				text += (i ? ", " : "") + parts[i];
 			text += ".";
-			if (!clean)
+			if (!lastEvent.empty() && lastEvent != "PostLoadGame" && lastEvent != "GameDataReady")
+				text += " The last thing Vitals saw was " + lastEvent + " at " + std::to_string(lastSeconds) + " s.";
+			else
 				text += " Vitals saw no later event.";
 		}
 		if (a_crash)

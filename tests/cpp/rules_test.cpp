@@ -750,7 +750,7 @@ static void LaunchTests()
 	CHECK(Launch::Recap(prev, Launch::CrashLogAfter(1000, { { "crash-a.log", 1030 } })).find("less than a minute") != std::string::npos);
 	const auto clean = Snap({ R"({"t":"2026-11-17T01:02:03Z","kind":"start"})", R"({"kind":"phase","event":"GameDataReady","ms_since_vitals_load":"80000"})",
 		R"({"kind":"phase","event":"DeleteGame","ms_since_vitals_load":"90000"})" });
-	CHECK(Launch::Recap(clean, std::nullopt) == "Last launch (2026-11-17 01:02 UTC): game data was ready (the main menu) after 80 s, the game closed normally.");
+	CHECK(Launch::Recap(clean, std::nullopt) == "Last launch (2026-11-17 01:02 UTC): game data was ready (the main menu) after 80 s. The last thing Vitals saw was DeleteGame at 90 s.");
 	CHECK(Launch::Recap(Snap({ R"({"t":"2026-11-17T01:02:03Z","kind":"start"})" }), std::nullopt) == "Last launch (2026-11-17 01:02 UTC): Vitals saw no game event.");
 	CHECK(Launch::Recap(Snap({ "nothing" }), std::nullopt).empty());
 
