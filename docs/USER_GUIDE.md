@@ -88,7 +88,7 @@ Below the reason, Vitals adds what it can find on your own PC, with no internet 
   "Check for updates" in Vortex or MO2 first for the freshest answer; Vitals does not go online itself).
 - **Other installed copies**: other mods in your Vortex staging folder or MO2 mods folder that carry the same DLL. If
   one of them would run on your game, the advice tells you to let that mod win the file conflict. This is the usual
-  cause when an up-to-date mod shows up here: an older mod (or an old bundled copy) overwrites its DLL. On Old-Gen a
+  cause when an up-to-date mod shows up here (if that copy lists only other game builds, the report says so and tells you to test it, because F4SE loading a plugin does not prove it works on your build): an older mod (or an old bundled copy) overwrites its DLL. On Old-Gen a
   copy that "decides for itself at start-up" may run, so it is offered as something to try. Under MO2 only the
   instance that manages your Fallout 4 folder is used. If the report says the game is not loading the winning mod's
   copy, the file comes from MO2's **Overwrite** folder (bottom of the left pane) or was put in `Data\F4SE\Plugins` by

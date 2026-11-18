@@ -3,6 +3,9 @@
 All releases are AI Assisted (see AI_DISCLOSURE.md). Dates are 2026. Newest first: 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
 
 ## 0.4.2 (2026-11-17: last-launch recap, changes since last launch, rule updates, report layout and fixes)
+* **Changed:** when another installed mod has a copy of a not-running DLL that F4SE would load, the report now calls it
+  "a copy F4SE would load" (not "a working copy"). If that copy's version data lists other game builds and not yours, the
+  report names those builds and tells you to test it, because such a copy can crash the game while it starts.
 * **Changed:** in `Vitals-Report.txt`, a not-running DLL's finding now puts the reason on the first line and the details
   (when it was built, File version, Installed by, other copies) on a second indented line, so the reason reads first.
 * **New:** the report starts with a recap of the last launch (when it started, how long until game data was ready and a
