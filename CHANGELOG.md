@@ -3,13 +3,16 @@
 All releases are AI Assisted (see AI_DISCLOSURE.md). Dates are 2026. Newest first: 0.4.2, 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.3, 0.2.2, 0.2.1, 0.2.0, 0.1.0.
 
 ## 0.4.2 (2026-11-17: last-launch recap, changes since last launch, rule updates, report layout and fixes)
+* **Changed:** when another installed mod has a copy of a not-running DLL that F4SE would load, the report now calls it
+  "a copy F4SE would load" (not "a working copy"). If that copy's version data lists other game builds and not yours, the
+  report names those builds and tells you to test it, because such a copy can crash the game while it starts.
 * **Changed:** in `Vitals-Report.txt`, a not-running DLL's finding now puts the reason on the first line and the details
   (when it was built, File version, Installed by, other copies) on a second indented line, so the reason reads first.
 * **New:** the report starts with a recap of the last launch (when it started, how long until game data was ready and a
-  save loaded, whether the game closed normally) and names a `crash*.log` that was written after that launch started. It
+  save loaded, and the last event Vitals saw; it cannot see the game close, so it never says it closed normally) and names a `crash*.log` that was written after that launch started. It
   never says "crashed": it only says what the records show.
 * **New:** a "CHANGED SINCE LAST LAUNCH" section lists F4SE DLLs that were replaced (old version -> new version), added or
-  removed, a different game or F4SE version, and a different active plugin count. DLLs are compared by their SHA-256, never
+  removed (only counted when the game or F4SE version also changed), a different game or F4SE version, and a different active plugin count. DLLs are compared by their SHA-256, never
   by file date. It says "Nothing changed since the last launch." when that is true.
 * **New:** the report header lists which knowledge-rule files were read and how many rules came from each. When two
   files hold the same rule, the file with the newer `# Generated: YYYY-MM-DD` header wins (files with no date come first,

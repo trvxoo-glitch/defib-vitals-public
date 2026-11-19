@@ -428,24 +428,39 @@ namespace Vitals
 		{
 			// What one copy would do on this game. Plugin DLLs are a few MB; 16 MB covers the headers, the export
 			// directory and the version resource of anything real, and keeps a huge file from stalling the start-up box.
-			auto judge = [](const std::filesystem::path& a_file, std::string* a_version) -> std::optional<Loader::Status> {
+			// a_note: set when F4SE would load the copy although its version data lists other game builds and not this one
+			// (it got in through the Address Library flags). F4SE loading it does not mean it works: a build made for an
+			// older game version can crash on a newer one.
+			auto judge = [](const std::filesystem::path& a_file, std::string* a_version, std::string* a_note = nullptr) -> std::optional<Loader::Status> {
 				const auto data = ReadFile(a_file, 16u << 20);
 				const auto pe = ParsePe(data);
 				if (!pe.ok)
 					return std::nullopt;
 				if (a_version)
 					*a_version = Formats::FileVersion(data);
-				return Explain(pe, ReadVersionData(data, pe), {}).verdict.status;
+				const auto vd = ReadVersionData(data, pe);
+				const auto status = Explain(pe, vd, {}).verdict.status;
+				if (a_note && status == Loader::Status::yes && vd && !vd->compat.empty()) {
+					const auto running = REX::FModule::GetExecutingModule().GetFileVersion().pack() & ~0xFu;
+					if (std::ranges::find(vd->compat, running) == vd->compat.end()) {
+						std::string list;
+						for (const auto c : vd->compat)
+							list += (list.empty() ? "" : ", ") + VersionText(c);
+						*a_note = "listed for " + list + ", not for " + VersionText(running);
+					}
+				}
+				return status;
 			};
 			std::vector<std::string> wouldRun, mayRun, wouldNot;
+			bool                     untested = false;  // some would-load copy is not listed for this game build
 			std::size_t              skipped = 0;
 			for (const auto& c : a_found.others) {
 				if (a_scan.OutOfTime()) {
 					++skipped;  // past the deadline: not read, and the report says so
 					continue;
 				}
-				std::string version;
-				const auto  status = judge(c.file, &version);
+				std::string version, note;
+				const auto  status = judge(c.file, &version, &note);
 				if (!status)
 					continue;
 				auto label = "\"" + c.mod + "\"";
@@ -455,6 +470,10 @@ namespace Vitals
 					label += " (mod version " + mv + ")";
 				if (!c.enabled)
 					label += " (off in your MO2 profile)";
+				if (!note.empty()) {
+					label += " (" + note + ")";
+					untested = true;
+				}
 				// Old-Gen: a plugin with F4SEPlugin_Query decides for itself at run time, so its copy may well run.
 				switch (*status) {
 				case Loader::Status::yes: wouldRun.push_back(label); break;
@@ -492,9 +511,10 @@ namespace Vitals
 			}
 			if (!wouldRun.empty()) {
 				if (a_advice.empty())
-					a_advice = std::format("Another installed mod has a copy of this DLL that would run on your game: {}. Make that mod win the file conflict ({}).",
-						join(wouldRun), how);
-				out += std::format(" {}: {}.", count(wouldRun, "a working copy"), join(wouldRun));
+					a_advice = std::format("Another installed mod has a copy of this DLL that F4SE would load on your game: {}. Make that mod win the file conflict ({}).{}",
+						join(wouldRun), how,
+						untested ? " Test it: a copy made for other game builds can crash the game while it starts. If that happens, switch back." : "");
+				out += std::format(" {}: {}.", count(wouldRun, "a copy F4SE would load"), join(wouldRun));
 			}
 			if (!mayRun.empty()) {
 				if (a_advice.empty())

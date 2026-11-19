@@ -180,24 +180,29 @@ namespace Vitals::Rules::Launch
 			return std::nullopt;
 		};
 		const auto ready = seconds("GameDataReady"), loaded = seconds("PostLoadGame");
-		bool       clean = false;
-		for (const auto& p : a_prev.phases)
-			clean = clean || p.first == "DeleteGame";
+		// DeleteGame is the game removing an old save (autosave rotation), not a sign that the game closed,
+		// so the recap names the last event Vitals saw instead of claiming a clean exit.
+		std::string lastEvent;
+		long        lastSeconds = 0;
+		if (!a_prev.phases.empty()) {
+			lastEvent   = a_prev.phases.back().first;
+			lastSeconds = static_cast<long>(a_prev.phases.back().second / 1000.0 + 0.5);
+		}
 		std::string text = "Last launch (" + when + " UTC): ";
 		std::vector<std::string> parts;
 		if (ready)
 			parts.push_back("game data was ready (the main menu) after " + std::to_string(*ready) + " s");
 		if (loaded)
 			parts.push_back("a save loaded after " + std::to_string(*loaded) + " s");
-		if (clean)
-			parts.push_back("the game closed normally");
 		if (parts.empty()) {
 			text += "Vitals saw no game event.";
 		} else {
 			for (std::size_t i = 0; i < parts.size(); ++i)
 				text += (i ? ", " : "") + parts[i];
 			text += ".";
-			if (!clean)
+			if (!lastEvent.empty() && lastEvent != "PostLoadGame" && lastEvent != "GameDataReady")
+				text += " The last thing Vitals saw was " + lastEvent + " at " + std::to_string(lastSeconds) + " s.";
+			else
 				text += " Vitals saw no later event.";
 		}
 		if (a_crash)
@@ -243,9 +248,19 @@ namespace Vitals::Rules::Launch
 		for (const auto& [key, was] : before)
 			if (!after.contains(key))
 				removed.push_back("Removed: " + was->file + (was->version.empty() ? "" : " " + was->version));
+		// A different game or F4SE version means a different set of DLLs was installed (a profile or game-version switch),
+		// so listing every added/removed DLL is noise: say how many instead. Replaced DLLs are still listed one by one.
+		const bool versionSwitch = (!a_prev.game.empty() && !a_now.game.empty() && a_prev.game != a_now.game) ||
+		                           (!a_prev.f4se.empty() && !a_now.f4se.empty() && a_prev.f4se != a_now.f4se);
 		std::vector<std::string> all;
-		for (auto* v : { &replaced, &added, &removed })
-			all.insert(all.end(), v->begin(), v->end());
+		if (versionSwitch && (added.size() + removed.size()) > 3) {
+			all = replaced;
+			out.push_back("The set of DLLs is different (" + std::to_string(added.size()) + " new, " + std::to_string(removed.size()) +
+			              " removed), as expected after a game or F4SE version change.");
+		} else {
+			for (auto* v : { &replaced, &added, &removed })
+				all.insert(all.end(), v->begin(), v->end());
+		}
 		for (std::size_t i = 0; i < all.size() && i < a_maxEntries; ++i)
 			out.push_back(all[i]);
 		if (all.size() > a_maxEntries)

@@ -750,7 +750,7 @@ static void LaunchTests()
 	CHECK(Launch::Recap(prev, Launch::CrashLogAfter(1000, { { "crash-a.log", 1030 } })).find("less than a minute") != std::string::npos);
 	const auto clean = Snap({ R"({"t":"2026-11-17T01:02:03Z","kind":"start"})", R"({"kind":"phase","event":"GameDataReady","ms_since_vitals_load":"80000"})",
 		R"({"kind":"phase","event":"DeleteGame","ms_since_vitals_load":"90000"})" });
-	CHECK(Launch::Recap(clean, std::nullopt) == "Last launch (2026-11-17 01:02 UTC): game data was ready (the main menu) after 80 s, the game closed normally.");
+	CHECK(Launch::Recap(clean, std::nullopt) == "Last launch (2026-11-17 01:02 UTC): game data was ready (the main menu) after 80 s. The last thing Vitals saw was DeleteGame at 90 s.");
 	CHECK(Launch::Recap(Snap({ R"({"t":"2026-11-17T01:02:03Z","kind":"start"})" }), std::nullopt) == "Last launch (2026-11-17 01:02 UTC): Vitals saw no game event.");
 	CHECK(Launch::Recap(Snap({ "nothing" }), std::nullopt).empty());
 
@@ -790,6 +790,15 @@ static void LaunchTests()
 		many.push_back(R"({"kind":"plugin","file":"N)" + std::to_string(i) + R"(.dll","sha256":"x","file_version":"1"})");
 	const auto big = Launch::Changes(Snap({ R"({"kind":"start"})", R"({"kind":"environment"})" }), Launch::Parse(many, [] { return false; }));
 	CHECK(big.size() == 11 && big[10] == "and 3 more");
+	// a game version switch: the added/removed DLLs are counted, not listed
+	{
+		std::vector<std::string> oldRun{ R"({"kind":"start"})", R"({"kind":"environment","game_version":"1.10.163.0"})" };
+		std::vector<std::string> newRun{ R"({"kind":"start"})", R"({"kind":"environment","game_version":"1.11.240.0"})" };
+		for (int i = 0; i < 5; ++i)
+			newRun.push_back(R"({"kind":"plugin","file":"N)" + std::to_string(i) + R"(.dll","sha256":"x","file_version":"1"})");
+		const auto sw = Launch::Changes(Launch::Parse(oldRun, [] { return false; }), Launch::Parse(newRun, [] { return false; }));
+		CHECK(sw.size() == 2 && sw[0].starts_with("The set of DLLs is different (5 new, 0 removed)") && sw[1].starts_with("The game changed"));
+	}
 	// out of time: parsing stops, and what was read so far is used
 	int calls = 0;
 	std::vector<std::string> longFile(200, R"({"kind":"plugin","file":"Z.dll","sha256":"x"})");

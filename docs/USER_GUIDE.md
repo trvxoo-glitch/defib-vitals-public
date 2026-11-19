@@ -88,7 +88,7 @@ Below the reason, Vitals adds what it can find on your own PC, with no internet 
   "Check for updates" in Vortex or MO2 first for the freshest answer; Vitals does not go online itself).
 - **Other installed copies**: other mods in your Vortex staging folder or MO2 mods folder that carry the same DLL. If
   one of them would run on your game, the advice tells you to let that mod win the file conflict. This is the usual
-  cause when an up-to-date mod shows up here: an older mod (or an old bundled copy) overwrites its DLL. On Old-Gen a
+  cause when an up-to-date mod shows up here (if that copy lists only other game builds, the report says so and tells you to test it, because F4SE loading a plugin does not prove it works on your build): an older mod (or an old bundled copy) overwrites its DLL. On Old-Gen a
   copy that "decides for itself at start-up" may run, so it is offered as something to try. Under MO2 only the
   instance that manages your Fallout 4 folder is used. If the report says the game is not loading the winning mod's
   copy, the file comes from MO2's **Overwrite** folder (bottom of the left pane) or was put in `Data\F4SE\Plugins` by
@@ -148,15 +148,17 @@ disable it.
 ### "Last launch (...)" and "CHANGED SINCE LAST LAUNCH" (0.4.2)
 
 The report starts with a short recap of the previous launch, read from `Vitals.prev.jsonl`: when it started, how many
-seconds until game data was ready (just before the main menu) and until a save loaded, and whether the game closed
-normally. "Vitals saw no later event" means exactly that: the game may have crashed, been closed from Task Manager, or
-simply been closed without a clean exit. If a `crash*.log` in the F4SE folder was written after that launch started, its
+seconds until game data was ready (just before the main menu) and until a save loaded, and the last event Vitals saw
+("The last thing Vitals saw was ... at N s", for example a save). Vitals cannot see the game close, so it never says the
+game closed normally. "Vitals saw no later event" means exactly that: the game may have crashed, been closed from Task
+Manager, or simply been closed. If a `crash*.log` in the F4SE folder was written after that launch started, its
 file name and how many minutes after the start it was written are shown. Vitals never says "crashed" on its own.
 
 "CHANGED SINCE LAST LAUNCH" lists F4SE DLLs that were **Replaced** (old version -> new version, or "different file" when the
 version is the same), **New** or **Removed**; a different game or F4SE version; and a different number of active plugins.
 DLLs are compared by their SHA-256, never by file date, so only a real change is listed. "Nothing changed since the last
-launch." means just that. It compares with the one previous launch; `defib_logs.py --compare` goes further back.
+launch." means just that. When the game or F4SE version changed and more than three DLLs were added or removed (a
+switch between game versions or profiles), the section only counts them instead of listing each one. It compares with the one previous launch; `defib_logs.py --compare` goes further back.
 
 ### "Knowledge rules: ... from defib-census.txt" (report header)
 

@@ -13,7 +13,7 @@ One small F4SE plugin. Install it, start the game once, and read
 * **Are known-bad files installed?** Old main-menu and font files that break the Anniversary menus, ENB + Community
   Shaders fighting over the same passes, and other rules found by testing real mod lists (you can add your own).
 * **Is an older copy of a mod's DLL overwriting the new one?** For each plugin that is not running, the report shows the
-  DLL's own version, which Vortex or MO2 mod's copy the game is using, other installed mods that carry a working copy
+  DLL's own version, which Vortex or MO2 mod's copy the game is using, other installed mods that carry a copy F4SE would load
   (the usual cause when an up-to-date mod "does not load"), and whether your mod manager's own update check found a
   newer version on Nexus. All read from files on your PC; Vitals never goes online.
 * **What changed since my last launch?** Every session is kept; one command shows plugins added or removed and
